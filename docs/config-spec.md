@@ -15,7 +15,7 @@
 | gerrit-restapi | `gerrit.json` |
 | jenkins-restapi | `jenkins.json` |
 | zentao-restapi | `zentao.json` |
-| mysql | `database.json` |
+| mysql | `mysql.json` |
 
 新 skill 在 `references/config.md` 里声明自己的 config_name。
 

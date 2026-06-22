@@ -3,7 +3,7 @@
 
 No DELETE, DROP, TRUNCATE, ALTER, CREATE, GRANT, REVOKE, SHOW, DESCRIBE.
 
-Supports multiple MySQL server instances via ``~/.bicv/database.json`` and the
+Supports multiple MySQL server instances via ``~/.bicv/mysql.json`` and the
 shared ``system_config`` module (same path-traversal protection and system
 matching as Gerrit / Jenkins).
 
@@ -133,14 +133,14 @@ def get_connection(
         if not user:
             missing.append("username")
         raise ServiceError(
-            f"Missing required connection parameters in ~/.bicv/database.json: "
+            f"Missing required connection parameters in ~/.bicv/mysql.json: "
             f"{', '.join(missing)}"
         )
 
     target_db = database or config.database
     if not target_db:
         raise ServiceError(
-            "No database specified; set 'database' in ~/.bicv/database.json "
+            "No database specified; set 'database' in ~/.bicv/mysql.json "
             "or use -d flag"
         )
 
@@ -286,7 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="system",
         default=None,
         help=(
-            "MySQL system name from ~/.bicv/database.json "
+            "MySQL system name from ~/.bicv/mysql.json "
             "(default: uses default_system)"
         ),
     )
@@ -302,7 +302,7 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    config = resolve_mysql_config(system=args.system)
+    config = resolve_mysql_config(system=args.system, config_name="mysql.json")
     sql = read_sql_file(args.sql)
     connection = get_connection(config, args.database)
 

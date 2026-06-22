@@ -2,14 +2,14 @@
 
 ## Connection Configuration
 
-连接配置仅通过 `~/.bicv/database.json` 文件管理，不支持环境变量方式。
+连接配置仅通过 `~/.bicv/mysql.json` 文件管理，不支持环境变量方式。
 
 配置加载优先级：
 
-1. `--system` CLI 参数 → 匹配 `~/.bicv/database.json` 中的指定系统
-2. `~/.bicv/database.json` 中的 `default_system`
+1. `--system` CLI 参数 → 匹配 `~/.bicv/mysql.json` 中的指定系统
+2. `~/.bicv/mysql.json` 中的 `default_system`
 
-创建 `~/.bicv/database.json` 管理多个 MySQL 服务器：
+创建 `~/.bicv/mysql.json` 管理多个 MySQL 服务器：
 
 ```json
 {
@@ -150,7 +150,7 @@ python3 scripts/mysql_query.py select "SELECT a.id, b.name FROM db1.orders a JOI
 
 | 错误信息 | 解决方案 |
 |---------|---------|
-| `Missing required connection parameters` | 检查 `~/.bicv/database.json` 配置文件是否存在且格式正确 |
+| `Missing required connection parameters` | 检查 `~/.bicv/mysql.json` 配置文件是否存在且格式正确 |
 | `Error connecting to MySQL` | 确认 MySQL 服务运行中、防火墙放行、凭证正确 |
 | `Access denied` | 检查用户名/密码、数据库权限 |
 | `Unknown database` | 确认数据库名存在或使用 `-d` 指定正确数据库 |

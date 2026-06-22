@@ -260,7 +260,7 @@ def resolve_target(
 def resolve_mysql_config(
     system: str | None = None,
     *,
-    config_name: str = "database.json",
+    config_name: str = "mysql.json",
 ) -> MySQLConnectionConfig:
     """Resolve MySQL connection parameters from ``~/.bicv/<config_name>``.
 
