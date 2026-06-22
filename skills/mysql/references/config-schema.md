@@ -6,8 +6,6 @@
 
 `mysql.json`，即 `~/.bicv/mysql.json`。
 
-> ⚠️ 旧版本使用 `~/.bicv/database.json`,升级时请执行 `mv ~/.bicv/database.json ~/.bicv/mysql.json`。
-
 ## 字段
 
 | 字段 | 必填 | 说明 |
