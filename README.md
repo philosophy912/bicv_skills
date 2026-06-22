@@ -21,14 +21,16 @@
 
 按平台分开装,同一个仓库装一次就够。
 
+下面以本仓库 `philosophy912/bicv_skills` 为例,替换成你自己的路径即可。
+
 ### Claude Code
 
 Claude Code 用 `.claude-plugin/marketplace.json`(plugin name: `bicv-skills`)。
 
-- 注册 marketplace(指向本仓库):
+- 注册 marketplace:
 
   ```bash
-  /plugin marketplace add <owner>/bicv_skills
+  /plugin marketplace add philosophy912/bicv_skills
   ```
 
 - 安装 plugin:
@@ -41,10 +43,10 @@ Claude Code 用 `.claude-plugin/marketplace.json`(plugin name: `bicv-skills`)。
 
 Codex 用 `.agents/plugins/marketplace.json`(同 plugin name)。
 
-- 在 Codex 中执行:
+- 注册 marketplace:
 
   ```bash
-  /plugin marketplace add <owner>/bicv_skills
+  /plugin marketplace add philosophy912/bicv_skills
   ```
 
 - 安装 plugin:
@@ -53,7 +55,7 @@ Codex 用 `.agents/plugins/marketplace.json`(同 plugin name)。
   /plugin install bicv-skills@bicv-skills
   ```
 
-> 把 `<owner>/bicv_skills` 替换成实际仓库路径,例如 `your-org/bicv_skills` 或本地 `file:///abs/path/to/bicv_skills`。
+> 替换 `philosophy912/bicv_skills` 为你的实际路径,例如 `your-org/bicv_skills`、本地 `file:///abs/path/to/bicv_skills`,或公司内网 GitLab 地址。
 
 ## 配置
 
