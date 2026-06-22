@@ -3,7 +3,7 @@
 ## 1. 复制模板
 
 ```bash
-cp -r skills/_template skills/<你的 skill 名>
+cp -r docs/skill-template skills/<你的 skill 名>
 ```
 
 ## 2. 编辑 SKILL.md
@@ -49,7 +49,7 @@ def get_system(system_name: str | None = None) -> dict:
 
 `shared/` 在 `skills/shared/`，`sys.path` 注入用的是「脚本 → skill 根 → `skills/`」即 `parent.parent.parent`，这样 plugin 复制到平台 cache 后路径仍正确。
 
-参考完整示例：`skills/_template/scripts/example.py`。
+参考完整示例：`docs/skill-template/scripts/example.py`。
 
 ## 4. 写配置说明
 
