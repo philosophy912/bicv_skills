@@ -1,0 +1,2480 @@
+# 账户
+
+> **English Title**: Accounts REST API Endpoints
+>
+> 本文档为 Gerrit 账户，包含完整的 REST API 端点说明、请求/响应示例。
+>
+> **版本**: v3.8.3
+
+---
+
+## 目录
+
+- [Account Endpoints](#account-endpoints)
+- [Query Account](#query-account)
+- [Get Account](#get-account)
+- [Create Account](#create-account)
+- [Get Account Details](#get-account-details)
+- [Get Account Name](#get-account-name)
+- [Set Account Name](#set-account-name)
+- [Delete Account Name](#delete-account-name)
+- [Get Account Status](#get-account-status)
+- [Set Account Status](#set-account-status)
+- [Get Username](#get-username)
+- [Set Username](#set-username)
+- [Set Display Name](#set-display-name)
+- [Get Active](#get-active)
+- [Set Active](#set-active)
+- [Delete Active](#delete-active)
+- [Set/Generate HTTP Password](#set/generate-http-password)
+- [Delete HTTP Password](#delete-http-password)
+- [Get OAuth Access Token](#get-oauth-access-token)
+- [List Account Emails](#list-account-emails)
+- [Get Account Email](#get-account-email)
+- [Create Account Email](#create-account-email)
+- [Delete Account Email](#delete-account-email)
+- [Set Preferred Email](#set-preferred-email)
+- [List SSH Keys](#list-ssh-keys)
+- [Get SSH Key](#get-ssh-key)
+- [Add SSH Key](#add-ssh-key)
+- [Delete SSH Key](#delete-ssh-key)
+- [List GPG Keys](#list-gpg-keys)
+- [Get GPG Key](#get-gpg-key)
+- [Add/Delete GPG Keys](#add/delete-gpg-keys)
+- [Delete GPG Key](#delete-gpg-key)
+- [List Account Capabilities](#list-account-capabilities)
+- [Check Account Capability](#check-account-capability)
+- [List Groups](#list-groups)
+- [Get Avatar](#get-avatar)
+- [Get Avatar Change URL](#get-avatar-change-url)
+- [Get User Preferences](#get-user-preferences)
+- [Set User Preferences](#set-user-preferences)
+- [Get Diff Preferences](#get-diff-preferences)
+- [Set Diff Preferences](#set-diff-preferences)
+- [Get Edit Preferences](#get-edit-preferences)
+- [Set Edit Preferences](#set-edit-preferences)
+- [Get Watched Projects](#get-watched-projects)
+- [Add/Update a List of Watched Project Entities](#add/update-a-list-of-watched-project-entities)
+- [Delete Watched Projects](#delete-watched-projects)
+- [Get Account External IDs](#get-account-external-ids)
+- [Delete Account External IDs](#delete-account-external-ids)
+- [List Contributor Agreements](#list-contributor-agreements)
+- [Delete Draft Comments](#delete-draft-comments)
+- [Sign Contributor Agreement](#sign-contributor-agreement)
+- [Index Account](#index-account)
+- [Default Star Endpoints](#default-star-endpoints)
+- [Get Changes With Default Star](#get-changes-with-default-star)
+- [Put Default Star On Change](#put-default-star-on-change)
+- [Remove Default Star From Change](#remove-default-star-from-change)
+- [IDs](#ids)
+- [{account-id}](#{account-id})
+- [{capability-id}](#{capability-id})
+- [{email-id}](#{email-id})
+- [{username}](#{username})
+- [{ssh-key-id}](#{ssh-key-id})
+- [{gpg-key-id}](#{gpg-key-id})
+- [JSON Entities](#json-entities)
+- [AccountDetailInfo](#accountdetailinfo)
+- [AccountExternalIdInfo](#accountexternalidinfo)
+- [AccountInfo](#accountinfo)
+- [AccountInput](#accountinput)
+- [AccountNameInput](#accountnameinput)
+- [AccountStatusInput](#accountstatusinput)
+- [AvatarInfo](#avatarinfo)
+- [CapabilityInfo](#capabilityinfo)
+- [ContributorAgreementInfo](#contributoragreementinfo)
+- [ContributorAgreementInput](#contributoragreementinput)
+- [DeleteDraftCommentsInput](#deletedraftcommentsinput)
+- [DeletedDraftCommentInfo](#deleteddraftcommentinfo)
+- [DiffPreferencesInfo](#diffpreferencesinfo)
+- [DiffPreferencesInput](#diffpreferencesinput)
+- [EditPreferencesInfo](#editpreferencesinfo)
+- [EmailInfo](#emailinfo)
+- [EmailInput](#emailinput)
+- [GpgKeyInfo](#gpgkeyinfo)
+- [GpgKeysInput](#gpgkeysinput)
+- [HttpPasswordInput](#httppasswordinput)
+- [OAuthTokenInfo](#oauthtokeninfo)
+- [PreferencesInfo](#preferencesinfo)
+- [PreferencesInput](#preferencesinput)
+- [QueryLimitInfo](#querylimitinfo)
+- [SshKeyInfo](#sshkeyinfo)
+- [UsernameInput](#usernameinput)
+- [DisplayNameInput](#displaynameinput)
+- [ProjectWatchInfo](#projectwatchinfo)
+
+---
+
+# Gerrit Code Review - /accounts/ REST API
+
+version v3.8.3
+
+Table of Contents
+
+  * Account Endpoints
+    * Query Account
+    * Get Account
+    * Create Account
+    * Get Account Details
+    * Get Account Name
+    * Set Account Name
+    * Delete Account Name
+    * Get Account Status
+    * Set Account Status
+    * Get Username
+    * Set Username
+    * Set Display Name
+    * Get Active
+    * Set Active
+    * Delete Active
+    * Set/Generate HTTP Password
+    * Delete HTTP Password
+    * Get OAuth Access Token
+    * List Account Emails
+    * Get Account Email
+    * Create Account Email
+    * Delete Account Email
+    * Set Preferred Email
+    * List SSH Keys
+    * Get SSH Key
+    * Add SSH Key
+    * Delete SSH Key
+    * List GPG Keys
+    * Get GPG Key
+    * Add/Delete GPG Keys
+    * Delete GPG Key
+    * List Account Capabilities
+    * Check Account Capability
+    * List Groups
+    * Get Avatar
+    * Get Avatar Change URL
+    * Get User Preferences
+    * Set User Preferences
+    * Get Diff Preferences
+    * Set Diff Preferences
+    * Get Edit Preferences
+    * Set Edit Preferences
+    * Get Watched Projects
+    * Add/Update a List of Watched Project Entities
+    * Delete Watched Projects
+    * Get Account External IDs
+    * Delete Account External IDs
+    * List Contributor Agreements
+    * Delete Draft Comments
+    * Sign Contributor Agreement
+    * Index Account
+  * Default Star Endpoints
+    * Get Changes With Default Star
+    * Put Default Star On Change
+    * Remove Default Star From Change
+  * IDs
+    * {account-id}
+    * {capability-id}
+    * {email-id}
+    * {username}
+    * {ssh-key-id}
+    * {gpg-key-id}
+  * JSON Entities
+    * AccountDetailInfo
+    * AccountExternalIdInfo
+    * AccountInfo
+    * AccountInput
+    * AccountNameInput
+    * AccountStatusInput
+    * AvatarInfo
+    * CapabilityInfo
+    * ContributorAgreementInfo
+    * ContributorAgreementInput
+    * DeleteDraftCommentsInput
+    * DeletedDraftCommentInfo
+    * DiffPreferencesInfo
+    * DiffPreferencesInput
+    * EditPreferencesInfo
+    * EmailInfo
+    * EmailInput
+    * GpgKeyInfo
+    * GpgKeysInput
+    * HttpPasswordInput
+    * OAuthTokenInfo
+    * PreferencesInfo
+    * PreferencesInput
+    * QueryLimitInfo
+    * SshKeyInfo
+    * UsernameInput
+    * DisplayNameInput
+    * ProjectWatchInfo
+
+This page describes the account related REST endpoints. Please also take note of the general information on the [REST API](rest-api.html).
+
+## Account Endpoints
+
+### Query Account
+
+'GET /accounts/'
+
+Queries accounts visible to the caller. The [query string](user-search-accounts.html#_search_operators) must be provided by the `q` parameter. The `n` parameter can be used to limit the returned results.
+
+As result a list of AccountInfo entities is returned.
+
+Request
+    
+    
+      GET /accounts/?q=name:John+email:example.com&n=2 HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "_account_id": 1000096,
+        },
+        {
+          "_account_id": 1001439,
+          "_more_accounts": true
+        }
+      ]
+
+If the number of accounts matching the query exceeds either the internal limit or a supplied `n` query parameter, the last account object has a `_more_accounts: true` JSON field set.
+
+The `S` or `start` query parameter can be supplied to skip a number of accounts from the list.
+
+Additional fields can be obtained by adding `o` parameters, each option slows down the query response time to the client so they are generally disabled by default. Optional fields are:
+
+  * `DETAILS`: Includes full name, preferred email, username, display name, avatars, status, state and tags for each account.
+
+  * `ALL_EMAILS`: Includes all registered emails. Requires the caller to have the [Modify Account](access-control.html#capability_modifyAccount) global capability.
+
+To get account suggestions set the parameter `suggest` and provide the typed substring as query `q`. If a result limit `n` is not specified, then the default 10 is used.
+
+For account suggestions account details and all emails are always returned.
+
+Request
+    
+    
+      GET /accounts/?suggest&q=John HTTP/1.0
+
+Secondary emails are only included if the calling user has the [Modify Account](access-control.html#capability_modifyAccount) capability.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "_account_id": 1000096,
+          "name": "John Doe",
+          "email": "john.doe@example.com",
+          "username": "john"
+          "display_name": "John D"
+        },
+        {
+          "_account_id": 1001439,
+          "name": "John Smith",
+          "email": "john.smith@example.com",
+          "username": "jsmith"
+          "display_name": "Johnny"
+        },
+      ]
+
+### Get Account
+
+'GET /accounts/{account-id}'
+
+Returns an account as an AccountInfo entity.
+
+Request
+    
+    
+      GET /accounts/self HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "_account_id": 1000096,
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "username": "john"
+        "display_name": "Super John"
+      }
+
+### Create Account
+
+'PUT /accounts/{username}'
+
+Creates a new account.
+
+In the request body additional data for the account can be provided as AccountInput.
+
+Request
+    
+    
+      PUT /accounts/john HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "name": "John Doe",
+        "display_name": "Super John",
+        "email": "john.doe@example.com",
+        "ssh_key": "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA0T...YImydZAw==",
+        "http_password": "19D9aIn7zePb",
+        "groups": [
+          "MyProject-Owners"
+        ]
+      }
+
+As response a detailed AccountInfo entity is returned that describes the created account.
+
+Response
+    
+    
+      HTTP/1.1 201 Created
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "_account_id": 1000195,
+        "name": "John Doe",
+        "email": "john.doe@example.com"
+      }
+
+### Get Account Details
+
+'GET /accounts/{account-id}/detail'
+
+Retrieves the details of an account as an  AccountDetailInfo entity.
+
+Request
+    
+    
+      GET /accounts/self/detail HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "registered_on": "2015-07-23 07:01:09.296000000",
+        "_account_id": 1000096,
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "username": "john"
+        "display_name": "Super John"
+      }
+
+### Get Account Name
+
+'GET /accounts/{account-id}/name'
+
+Retrieves the full name of an account.
+
+Request
+    
+    
+      GET /accounts/self/name HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      "John Doe"
+
+If the account does not have a name an empty string is returned.
+
+### Set Account Name
+
+'PUT /accounts/{account-id}/name'
+
+Sets the full name of an account.
+
+The new account name must be provided in the request body inside an AccountNameInput entity.
+
+Request
+    
+    
+      PUT /accounts/self/name HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "name": "John F. Doe"
+      }
+
+As response the new account name is returned.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      "John F. Doe"
+
+If the name was deleted the response is “204 No Content”.
+
+Some realms may not allow to modify the account name. In this case the request is rejected with “405 Method Not Allowed”.
+
+### Delete Account Name
+
+'DELETE /accounts/{account-id}/name'
+
+Deletes the name of an account.
+
+Request
+    
+    
+      DELETE /accounts/self/name HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+### Get Account Status
+
+'GET /accounts/{account-id}/status'
+
+Retrieves the status of an account.
+
+Request
+    
+    
+      GET /accounts/self/status HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      "Available"
+
+If the account does not have a status an empty string is returned.
+
+### Set Account Status
+
+'PUT /accounts/{account-id}/status'
+
+Sets the status of an account.
+
+The new account status must be provided in the request body inside an AccountStatusInput entity.
+
+Request
+    
+    
+      PUT /accounts/self/status HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "status": "Out Of Office"
+      }
+
+As response the new account status is returned.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      "Out Of Office"
+
+If the name was deleted the response is “204 No Content”.
+
+### Get Username
+
+'GET /accounts/{account-id}/username'
+
+Retrieves the username of an account.
+
+Request
+    
+    
+      GET /accounts/self/username HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      "john.doe"
+
+If the account does not have a username the response is “404 Not Found”.
+
+### Set Username
+
+'PUT /accounts/{account-id}/username'
+
+The new username must be provided in the request body inside a UsernameInput entity.
+
+Once set, the username cannot be changed or deleted. If attempted this fails with “405 Method Not Allowed”.
+
+Request
+    
+    
+      PUT /accounts/self/username HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "username": "jdoe"
+      }
+
+As response the new username is returned.
+
+### Set Display Name
+
+'PUT /accounts/{account-id}/displayname'
+
+The new display name must be provided in the request body inside a DisplayNameInput entity.
+
+Request
+    
+    
+      PUT /accounts/self/displayname HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "display_name": "John"
+      }
+
+As response the new display name is returned.
+
+### Get Active
+
+'GET /accounts/{account-id}/active'
+
+Checks if an account is active.
+
+Request
+    
+    
+      GET /accounts/john.doe@example.com/active HTTP/1.0
+
+If the account is active the string `ok` is returned.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      ok
+
+If the account is inactive the response is “204 No Content”.
+
+### Set Active
+
+'PUT /accounts/{account-id}/active'
+
+Sets the account state to active.
+
+Request
+    
+    
+      PUT /accounts/john.doe@example.com/active HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 201 Created
+
+If the account was already active the response is “200 OK”.
+
+### Delete Active
+
+'DELETE /accounts/{account-id}/active'
+
+Sets the account state to inactive.
+
+Request
+    
+    
+      DELETE /accounts/john.doe@example.com/active HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+If the account was already inactive the response is “409 Conflict”.
+
+### Set/Generate HTTP Password
+
+'PUT /accounts/{account-id}/password.http'
+
+Sets/Generates the HTTP password of an account.
+
+The options for setting/generating the HTTP password must be provided in the request body inside a  HttpPasswordInput entity.
+
+The account must have a username.
+
+Request
+    
+    
+      PUT /accounts/self/password.http HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "generate": true
+      }
+
+As response the new HTTP password is returned.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      "ETxgpih8xrNs"
+
+If the HTTP password was deleted the response is “204 No Content”.
+
+### Delete HTTP Password
+
+'DELETE /accounts/{account-id}/password.http'
+
+Deletes the HTTP password of an account.
+
+Request
+    
+    
+      DELETE /accounts/self/password.http HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+### Get OAuth Access Token
+
+'GET /accounts/{account-id}/oauthtoken'
+
+Returns a previously obtained OAuth access token.
+
+Request
+    
+    
+      GET /accounts/self/oauthtoken HTTP/1.1
+
+As a response, an OAuthTokenInfo entity is returned that describes the OAuth access token.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+       )]}'
+        {
+          "username": "johndow",
+          "resource_host": "gerrit.example.org",
+          "access_token": "eyJhbGciOiJSUzI1NiJ9.eyJqdGkiOi",
+          "provider_id": "oauth-plugin:oauth-provider",
+          "expires_at": "922337203775807",
+          "type": "bearer"
+        }
+
+If there is no token available, or the token has already expired, “404 Not Found” is returned as response. Requests to obtain an access token of another user are rejected with “403 Forbidden”.
+
+### List Account Emails
+
+'GET /accounts/{account-id}/emails'
+
+Returns the email addresses that are configured for the specified user.
+
+[ModifyAccount](access-control.html#capability_modifyAccount) capability is required to view emails of other users.
+
+Request
+    
+    
+      GET /accounts/self/emails HTTP/1.0
+
+As response the email addresses of the user are returned as a list of EmailInfo entities.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "email": "john.doe@example.com",
+          "preferred": true
+        },
+        {
+          "email": "j.doe@example.com"
+        }
+      ]
+
+### Get Account Email
+
+'GET /accounts/{account-id}/emails/{email-id}'
+
+Retrieves an email address of a user.
+
+Request
+    
+    
+      GET /accounts/self/emails/john.doe@example.com HTTP/1.0
+
+As response an EmailInfo entity is returned that describes the email address.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "email": "john.doe@example.com",
+        "preferred": true
+      }
+
+### Create Account Email
+
+'PUT /accounts/{account-id}/emails/{email-id}'
+
+Registers a new email address for the user. A verification email is sent with a link that needs to be visited to confirm the email address, unless `DEVELOPMENT_BECOME_ANY_ACCOUNT` is used as authentication type. For the development mode email addresses are directly added without confirmation. A Gerrit administrator may add an email address without confirmation by setting `no_confirmation` in the EmailInput. If [sendemail.allowrcpt](config-gerrit.html#sendemail.allowrcpt) is configured, the added email address must belong to a domain that is allowed, unless `no_confirmation` is set. If [sendemail.denyrcpt](config-gerrit.html#sendemail.denyrcpt) is configured, make sure that the added email address is **not** disallowed or belongs to a domain that is disallowed.
+
+The EmailInput object in the request body may contain additional options for the email address.
+
+Request
+    
+    
+      PUT /accounts/self/emails/john.doe@example.com HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+      Content-Length: 3
+    
+      {}
+
+As response the new email address is returned as EmailInfo entity.
+
+Response
+    
+    
+      HTTP/1.1 201 Created
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "email": "john.doe@example.com",
+        "pending_confirmation": true
+      }
+
+### Delete Account Email
+
+'DELETE /accounts/{account-id}/emails/{email-id}'
+
+Deletes an email address of an account.
+
+Request
+    
+    
+      DELETE /accounts/self/emails/john.doe@example.com HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+### Set Preferred Email
+
+'PUT /accounts/{account-id}/emails/{email-id}/preferred'
+
+Sets an email address as preferred email address for an account.
+
+Request
+    
+    
+      PUT /accounts/self/emails/john.doe@example.com/preferred HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 201 Created
+
+If the email address was already the preferred email address of the account the response is “200 OK”.
+
+### List SSH Keys
+
+'GET /accounts/{account-id}/sshkeys'
+
+Returns the SSH keys of an account.
+
+Request
+    
+    
+      GET /accounts/self/sshkeys HTTP/1.0
+
+As response the SSH keys of the account are returned as a list of SshKeyInfo entities.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "seq": 1,
+          "ssh_public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA0T...YImydZAw== john.doe@example.com",
+          "encoded_key": "AAAAB3NzaC1yc2EAAAABIwAAAQEA0T...YImydZAw==",
+          "algorithm": "ssh-rsa",
+          "comment": "john.doe@example.com",
+          "valid": true
+        }
+      ]
+
+### Get SSH Key
+
+'GET /accounts/{account-id}/sshkeys/{ssh-key-id}'
+
+Retrieves an SSH key of a user.
+
+Request
+    
+    
+      GET /accounts/self/sshkeys/1 HTTP/1.0
+
+As response an SshKeyInfo entity is returned that describes the SSH key.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "seq": 1,
+        "ssh_public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA0T...YImydZAw== john.doe@example.com",
+        "encoded_key": "AAAAB3NzaC1yc2EAAAABIwAAAQEA0T...YImydZAw==",
+        "algorithm": "ssh-rsa",
+        "comment": "john.doe@example.com",
+        "valid": true
+      }
+
+### Add SSH Key
+
+'POST /accounts/{account-id}/sshkeys'
+
+Adds an SSH key for a user.
+
+The SSH public key must be provided as raw content in the request body.
+
+Trying to add an SSH key that already exists succeeds, but no new SSH key is persisted.
+
+Request
+    
+    
+      POST /accounts/self/sshkeys HTTP/1.0
+      Content-Type: text/plain
+    
+      ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA0T...YImydZAw== john.doe@example.com
+
+As response an SshKeyInfo entity is returned that describes the new SSH key.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "seq": 2,
+        "ssh_public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA0T...YImydZAw== john.doe@example.com",
+        "encoded_key": "AAAAB3NzaC1yc2EAAAABIwAAAQEA0T...YImydZAw==",
+        "algorithm": "ssh-rsa",
+        "comment": "john.doe@example.com",
+        "valid": true
+      }
+
+### Delete SSH Key
+
+'DELETE /accounts/{account-id}/sshkeys/{ssh-key-id}'
+
+Deletes an SSH key of a user.
+
+Request
+    
+    
+      DELETE /accounts/self/sshkeys/2 HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+### List GPG Keys
+
+'GET /accounts/{account-id}/gpgkeys'
+
+Returns the GPG keys of an account.
+
+Request
+    
+    
+      GET /accounts/self/gpgkeys HTTP/1.0
+
+As a response, the GPG keys of the account are returned as a map of GpgKeyInfo entities, keyed by ID.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "AFC8A49B": {
+          "fingerprint": "0192 723D 42D1 0C5B 32A6  E1E0 9350 9E4B AFC8 A49B",
+          "user_ids": [
+            "John Doe \u003cjohn.doe@example.com\u003e"
+          ],
+          "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: BCPG v1.52\n\nmQENBFXUpNcBCACv4paCiyKxZ0EcKy8VaWVNkJlNebRBiyw9WxU85wPOq5Gz/3GT\nRQwKqeY0SxVdQT8VNBw2sBe2m6eqcfZ2iKmesSlbXMe15DA7k8Bg4zEpQ0tXNG1L\nhceZDVQ1Xk06T2sgkunaiPsXi82nwN3UWYtDXxX4is5e6xBNL48Jgz4lbqo6+8D5\nvsVYiYMx4AwRkJyt/oA3IZAtSlY8Yd445nY14VPcnsGRwGWTLyZv9gxKHRUppVhQ\nE3o6ePXKEVgmONnQ4CjqmkGwWZvjMF2EPtAxvQLAuFa8Hqtkq5cgfgVkv/Vrcln4\nnQZVoMm3a3f5ODii2tQzNh6+7LL1bpqAmVEtABEBAAG0H0pvaG4gRG9lIDxqb2hu\nLmRvZUBleGFtcGxlLmNvbT6JATgEEwECACIFAlXUpNcCGwMGCwkIBwMCBhUIAgkK\nCwQWAgMBAh4BAheAAAoJEJNQnkuvyKSbfjoH/2OcSQOu1kJ20ndjhgY2yNChm7gd\ntU7TEBbB0TsLeazkrrLtKvrpW5+CRe07ZAG9HOtp3DikwAyrhSxhlYgVsQDhgB8q\nG0tYiZtQ88YyYrncCQ4hwknrcWXVW9bK3V4ZauxzPv3ADSloyR9tMURw5iHCIeL5\nfIw/pLvA3RjPMx4Sfow/bqRCUELua39prGw5Tv8a2ZRFbj2sgP5j8lUFegyJPQ4z\ntJhe6zZvKOzvIyxHO8llLmdrImsXRL9eqroWGs0VYqe6baQpY6xpSjbYK0J5HYcg\nTO+/u80JI+ROTMHE6unGp5Pgh/xIz6Wd34E0lWL1eOyNfGiPLyRWn1d0",
+          "status": "TRUSTED",
+          "problems": [],
+        },
+      }
+
+### Get GPG Key
+
+'GET /accounts/{account-id}/gpgkeys/{gpg-key-id}'
+
+Retrieves a GPG key of a user.
+
+Request
+    
+    
+      GET /accounts/self/gpgkeys/AFC8A49B HTTP/1.0
+
+As a response, a GpgKeyInfo entity is returned that describes the GPG key.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "id": "AFC8A49B",
+        "fingerprint": "0192 723D 42D1 0C5B 32A6  E1E0 9350 9E4B AFC8 A49B",
+        "user_ids": [
+          "John Doe \u003cjohn.doe@example.com\u003e"
+        ],
+        "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: BCPG v1.52\n\nmQENBFXUpNcBCACv4paCiyKxZ0EcKy8VaWVNkJlNebRBiyw9WxU85wPOq5Gz/3GT\nRQwKqeY0SxVdQT8VNBw2sBe2m6eqcfZ2iKmesSlbXMe15DA7k8Bg4zEpQ0tXNG1L\nhceZDVQ1Xk06T2sgkunaiPsXi82nwN3UWYtDXxX4is5e6xBNL48Jgz4lbqo6+8D5\nvsVYiYMx4AwRkJyt/oA3IZAtSlY8Yd445nY14VPcnsGRwGWTLyZv9gxKHRUppVhQ\nE3o6ePXKEVgmONnQ4CjqmkGwWZvjMF2EPtAxvQLAuFa8Hqtkq5cgfgVkv/Vrcln4\nnQZVoMm3a3f5ODii2tQzNh6+7LL1bpqAmVEtABEBAAG0H0pvaG4gRG9lIDxqb2hu\nLmRvZUBleGFtcGxlLmNvbT6JATgEEwECACIFAlXUpNcCGwMGCwkIBwMCBhUIAgkK\nCwQWAgMBAh4BAheAAAoJEJNQnkuvyKSbfjoH/2OcSQOu1kJ20ndjhgY2yNChm7gd\ntU7TEBbB0TsLeazkrrLtKvrpW5+CRe07ZAG9HOtp3DikwAyrhSxhlYgVsQDhgB8q\nG0tYiZtQ88YyYrncCQ4hwknrcWXVW9bK3V4ZauxzPv3ADSloyR9tMURw5iHCIeL5\nfIw/pLvA3RjPMx4Sfow/bqRCUELua39prGw5Tv8a2ZRFbj2sgP5j8lUFegyJPQ4z\ntJhe6zZvKOzvIyxHO8llLmdrImsXRL9eqroWGs0VYqe6baQpY6xpSjbYK0J5HYcg\nTO+/u80JI+ROTMHE6unGp5Pgh/xIz6Wd34E0lWL1eOyNfGiPLyRWn1d0",
+        "status": "TRUSTED",
+        "problems": [],
+      }
+
+### Add/Delete GPG Keys
+
+'POST /accounts/{account-id}/gpgkeys'
+
+Add or delete one or more GPG keys for a user.
+
+The changes must be provided in the request body as a GpgKeysInput entity. Each new GPG key is provided in ASCII armored format, and must contain a self-signed certification matching a registered email or other identity of the user.
+
+Request
+    
+    
+      POST /accounts/link:#account-id[\{account-id\}]/gpgkeys
+      Content-Type: application/json
+    
+      {
+        "add": [
+          "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n\nmQENBFXUpNcBCACv4paCiyKxZ0EcKy8VaWVNkJlNebRBiyw9WxU85wPOq5Gz/3GT\nRQwKqeY0SxVdQT8VNBw2sBe2m6eqcfZ2iKmesSlbXMe15DA7k8Bg4zEpQ0tXNG1L\nhceZDVQ1Xk06T2sgkunaiPsXi82nwN3UWYtDXxX4is5e6xBNL48Jgz4lbqo6+8D5\nvsVYiYMx4AwRkJyt/oA3IZAtSlY8Yd445nY14VPcnsGRwGWTLyZv9gxKHRUppVhQ\nE3o6ePXKEVgmONnQ4CjqmkGwWZvjMF2EPtAxvQLAuFa8Hqtkq5cgfgVkv/Vrcln4\nnQZVoMm3a3f5ODii2tQzNh6+7LL1bpqAmVEtABEBAAG0H0pvaG4gRG9lIDxqb2hu\nLmRvZUBleGFtcGxlLmNvbT6JATgEEwECACIFAlXUpNcCGwMGCwkIBwMCBhUIAgkK\nCwQWAgMBAh4BAheAAAoJEJNQnkuvyKSbfjoH/2OcSQOu1kJ20ndjhgY2yNChm7gd\ntU7TEBbB0TsLeazkrrLtKvrpW5+CRe07ZAG9HOtp3DikwAyrhSxhlYgVsQDhgB8q\nG0tYiZtQ88YyYrncCQ4hwknrcWXVW9bK3V4ZauxzPv3ADSloyR9tMURw5iHCIeL5\nfIw/pLvA3RjPMx4Sfow/bqRCUELua39prGw5Tv8a2ZRFbj2sgP5j8lUFegyJPQ4z\ntJhe6zZvKOzvIyxHO8llLmdrImsXRL9eqroWGs0VYqe6baQpY6xpSjbYK0J5HYcg\nTO+/u80JI+ROTMHE6unGp5Pgh/xIz6Wd34E0lWL1eOyNfGiPLyRWn1d0yZO5AQ0E\nVdSk1wEIALUycrH2HK9zQYdR/KJo1yJJuaextLWsYYn881yDQo/p06U5vXOZ28lG\nAq/Xs96woVZPbgME6FyQzhf20Z2sbr+5bNo3OcEKaKX3Eo/sWwSJ7bXbGLDxMf4S\netfY1WDC+4rTqE30JuC++nQviPRdCcZf0AEgM6TxVhYEMVYwV787YO1IH62EBICM\nSkIONOfnusNZ4Skgjq9OzakOOpROZ4tki5cH/5oSDgdcaGPy1CFDpL9fG6er2zzk\nsw3qCbraqZrrlgpinWcAduiao67U/dV18O6OjYzrt33fTKZ0+bXhk1h1gloC21MQ\nya0CXlnfR/FOQhvuK0RlbR3cMfhZQscAEQEAAYkBHwQYAQIACQUCVdSk1wIbDAAK\nCRCTUJ5Lr8ikm8+QB/4uE+AlvFQFh9W8koPdfk7CJF7wdgZZ2NDtktvLL71WuMK8\nPOmf9f5JtcLCX4iJxGzcWogAR5ed20NgUoHUg7jn9Xm3fvP+kiqL6WqPhjazd89h\nk06v9hPE65kp4wb0fQqDrtWfP1lFGuh77rQgISt3Y4QutDl49vXS183JAfGPxFxx\n8FgGcfNwL2LVObvqCA0WLqeIrQVbniBPFGocE3yA/0W9BB/xtolpKfgMMsqGRMeu\n9oIsNxB2oE61OsqjUtGsnKQi8k5CZbhJaql4S89vwS+efK0R+mo+0N55b0XxRlCS\nfaURgAcjarQzJnG0hUps2GNO/+nM7UyyJAGfHlh5\n=EdXO\n-----END PGP PUBLIC KEY BLOCK-----\n"
+        ],
+        "delete": [
+          "DEADBEEF",
+        ]
+      }'
+
+As a response, the modified GPG keys are returned as a map of GpgKeyInfo entities, keyed by ID. Deleted keys are represented by an empty object.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "AFC8A49B": {
+          "fingerprint": "0192 723D 42D1 0C5B 32A6  E1E0 9350 9E4B AFC8 A49B",
+          "user_ids": [
+            "John Doe \u003cjohn.doe@example.com\u003e"
+          ],
+          "key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: BCPG v1.52\n\nmQENBFXUpNcBCACv4paCiyKxZ0EcKy8VaWVNkJlNebRBiyw9WxU85wPOq5Gz/3GT\nRQwKqeY0SxVdQT8VNBw2sBe2m6eqcfZ2iKmesSlbXMe15DA7k8Bg4zEpQ0tXNG1L\nhceZDVQ1Xk06T2sgkunaiPsXi82nwN3UWYtDXxX4is5e6xBNL48Jgz4lbqo6+8D5\nvsVYiYMx4AwRkJyt/oA3IZAtSlY8Yd445nY14VPcnsGRwGWTLyZv9gxKHRUppVhQ\nE3o6ePXKEVgmONnQ4CjqmkGwWZvjMF2EPtAxvQLAuFa8Hqtkq5cgfgVkv/Vrcln4\nnQZVoMm3a3f5ODii2tQzNh6+7LL1bpqAmVEtABEBAAG0H0pvaG4gRG9lIDxqb2hu\nLmRvZUBleGFtcGxlLmNvbT6JATgEEwECACIFAlXUpNcCGwMGCwkIBwMCBhUIAgkK\nCwQWAgMBAh4BAheAAAoJEJNQnkuvyKSbfjoH/2OcSQOu1kJ20ndjhgY2yNChm7gd\ntU7TEBbB0TsLeazkrrLtKvrpW5+CRe07ZAG9HOtp3DikwAyrhSxhlYgVsQDhgB8q\nG0tYiZtQ88YyYrncCQ4hwknrcWXVW9bK3V4ZauxzPv3ADSloyR9tMURw5iHCIeL5\nfIw/pLvA3RjPMx4Sfow/bqRCUELua39prGw5Tv8a2ZRFbj2sgP5j8lUFegyJPQ4z\ntJhe6zZvKOzvIyxHO8llLmdrImsXRL9eqroWGs0VYqe6baQpY6xpSjbYK0J5HYcg\nTO+/u80JI+ROTMHE6unGp5Pgh/xIz6Wd34E0lWL1eOyNfGiPLyRWn1d0"
+          "status": "TRUSTED",
+          "problems": [],
+        }
+        "DEADBEEF": {}
+      }
+
+### Delete GPG Key
+
+'DELETE /accounts/{account-id}/gpgkeys/{gpg-key-id}'
+
+Deletes a GPG key of a user.
+
+Request
+    
+    
+      DELETE /accounts/self/gpgkeys/AFC8A49B HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+### List Account Capabilities
+
+'GET /accounts/{account-id}/capabilities'
+
+Returns the global capabilities that are enabled for the specified user.
+
+If the global capabilities for the calling user should be listed, `self` can be used as account-id. This can be used by UI tools to discover if administrative features are available to the caller, so they can hide (or show) relevant UI actions.
+
+Request
+    
+    
+      GET /accounts/self/capabilities HTTP/1.0
+
+As response the global capabilities of the user are returned as a CapabilityInfo entity.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "queryLimit": {
+          "min": 0,
+          "max": 500
+        },
+        "emailReviewers": true
+      }
+
+Administrator that has authenticated with basic authentication:
+
+Request
+    
+    
+      GET /a/accounts/self/capabilities HTTP/1.0
+      Authorization: Basic ABCDECF..
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "administrateServer": true,
+        "queryLimit": {
+          "min": 0,
+          "max": 500
+        },
+        "createAccount": true,
+        "createGroup": true,
+        "createProject": true,
+        "emailReviewers": true,
+        "killTask": true,
+        "viewCaches": true,
+        "flushCaches": true,
+        "viewConnections": true,
+        "viewPlugins": true,
+        "viewQueue": true,
+        "runGC": true
+      }
+
+Get your own capabilities
+
+GET /accounts/self/capabilities HTTP/1.0 
+
+To filter the set of global capabilities the `q` parameter can be used. Filtering may decrease the response time by avoiding looking at every possible alternative for the caller.
+
+Request
+    
+    
+      GET /a/accounts/self/capabilities?q=createAccount&q=createGroup HTTP/1.0
+      Authorization: Basic ABCDEF...
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "createAccount": true,
+        "createGroup": true
+      }
+
+Check if you can create groups
+
+GET /accounts/self/capabilities?q=createGroup HTTP/1.0 
+
+### Check Account Capability
+
+'GET /accounts/{account-id}/capabilities/{capability-id}'
+
+Checks if a user has a certain global capability.
+
+Request
+    
+    
+      GET /a/accounts/self/capabilities/createGroup HTTP/1.0
+
+If the user has the global capability the string `ok` is returned.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+    
+      ok
+
+If the user doesn’t have the global capability the response is “404 Not Found”.
+
+Check if you can create groups
+
+GET /accounts/self/capabilities/createGroup HTTP/1.0 
+
+### List Groups
+
+'GET /accounts/{account-id}/groups/'
+
+Lists all groups that contain the specified user as a member.
+
+Request
+    
+    
+      GET /a/accounts/self/groups/ HTTP/1.0
+
+As result a list of [GroupInfo](rest-api-groups.html#group-info) entries is returned.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "id": "global%3AAnonymous-Users",
+          "url": "#/admin/groups/uuid-global%3AAnonymous-Users",
+          "options": {
+          },
+          "description": "Any user, signed-in or not",
+          "group_id": 2,
+          "owner_id": "6a1e70e1a88782771a91808c8af9bbb7a9871389"
+        },
+        {
+          "id": "834ec36dd5e0ed21a2ff5d7e2255da082d63bbd7",
+          "url": "#/admin/groups/uuid-834ec36dd5e0ed21a2ff5d7e2255da082d63bbd7",
+          "options": {
+            "visible_to_all": true,
+          },
+          "group_id": 6,
+          "owner_id": "834ec36dd5e0ed21a2ff5d7e2255da082d63bbd7"
+        },
+        {
+          "id": "global%3ARegistered-Users",
+          "url": "#/admin/groups/uuid-global%3ARegistered-Users",
+          "options": {
+          },
+          "description": "Any signed-in user",
+          "group_id": 3,
+          "owner_id": "6a1e70e1a88782771a91808c8af9bbb7a9871389"
+        }
+      ]
+
+List all groups that contain you as a member
+
+GET /accounts/self/groups/ HTTP/1.0 
+
+### Get Avatar
+
+'GET /accounts/{account-id}/avatar'
+
+Retrieves the avatar image of the user.
+
+With the `size` option (alias `s`) you can specify the preferred size in pixels (height and width).
+
+Request
+    
+    
+      GET /a/accounts/john.doe@example.com/avatar?s=20 HTTP/1.0
+
+The response redirects to the URL of the avatar image.
+
+Response
+    
+    
+      HTTP/1.1 302 Found
+      Location: https://profiles/avatar/john_doe.jpeg?s=20x20
+
+### Get Avatar Change URL
+
+'GET /accounts/{account-id}/avatar.change.url'
+
+Retrieves the URL where the user can change the avatar image.
+
+Request
+    
+    
+      GET /a/accounts/self/avatar.change.url HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: text/plain; charset=UTF-8
+    
+      https://profiles/pictures/john.doe
+
+### Get User Preferences
+
+'GET /accounts/{account-id}/preferences'
+
+Retrieves the user’s preferences.
+
+Request
+    
+    
+      GET /a/accounts/self/preferences HTTP/1.0
+
+As result the account preferences of the user are returned as a PreferencesInfo entity.
+
+Users may only retrieve the preferences for their own account, unless they are an [Administrator](access-control.html#administrators) or a member of a group that is granted the [ModifyAccount](access-control.html#capability_modifyAccount) capability, in which case they can retrieve the preferences for any account.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "changes_per_page": 25,
+        "theme": "AUTO",
+        "date_format": "STD",
+        "time_format": "HHMM_12",
+        "diff_view": "SIDE_BY_SIDE",
+        "size_bar_in_change_table": true,
+        "mute_common_path_prefixes": true,
+        "publish_comments_on_push": true,
+        "work_in_progress_by_default": true,
+        "allow_browser_notifications": true,
+        "default_base_for_merges": "FIRST_PARENT",
+        "my": [
+          {
+            "url": "#/dashboard/self",
+            "name": "Changes"
+          },
+          {
+            "url": "#/q/has:draft",
+            "name": "Draft Comments"
+          },
+          {
+            "url": "#/q/is:watched+is:open",
+            "name": "Watched Changes"
+          },
+          {
+            "url": "#/q/is:starred",
+            "name": "Starred Changes"
+          },
+          {
+            "url": "#/groups/self",
+            "name": "Groups"
+          },
+          change_table: []
+        ]
+      }
+
+### Set User Preferences
+
+'PUT /accounts/{account-id}/preferences'
+
+Sets the user’s preferences.
+
+The new preferences must be provided in the request body as a PreferencesInput entity.
+
+Request
+    
+    
+      PUT /a/accounts/self/preferences HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "changes_per_page": 50,
+        "theme": "DARK",
+        "expand_inline_diffs": true,
+        "date_format": "STD",
+        "time_format": "HHMM_12",
+        "size_bar_in_change_table": true,
+        "disable_keyboard_shortcuts": true,
+        "disable_token_highlighting": true,
+        "allow_browser_notifications": false,
+        "diff_view": "SIDE_BY_SIDE",
+        "mute_common_path_prefixes": true,
+        "my": [
+          {
+            "url": "#/dashboard/self",
+            "name": "Changes"
+          },
+          {
+            "url": "#/q/has:draft",
+            "name": "Draft Comments"
+          },
+          {
+            "url": "#/q/is:watched+is:open",
+            "name": "Watched Changes"
+          },
+          {
+            "url": "#/q/is:starred",
+            "name": "Starred Changes"
+          },
+          {
+            "url": "#/groups/self",
+            "name": "Groups"
+          }
+        ],
+        "change_table": [
+          "Subject",
+          "Owner"
+        ]
+      }
+
+As result the new preferences of the user are returned as a PreferencesInfo entity.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "changes_per_page": 50,
+        "theme" "DARK",
+        "expand_inline_diffs": true,
+        "date_format": "STD",
+        "time_format": "HHMM_12",
+        "size_bar_in_change_table": true,
+        "diff_view": "SIDE_BY_SIDE",
+        "publish_comments_on_push": true,
+        "disable_keyboard_shortcuts": true,
+        "disable_token_highlighting": true,
+        "work_in_progress_by_default": true,
+        "mute_common_path_prefixes": true,
+        "my": [
+          {
+            "url": "#/dashboard/self",
+            "name": "Changes"
+          },
+          {
+            "url": "#/q/has:draft",
+            "name": "Draft Comments"
+          },
+          {
+            "url": "#/q/is:watched+is:open",
+            "name": "Watched Changes"
+          },
+          {
+            "url": "#/q/is:starred",
+            "name": "Starred Changes"
+          },
+          {
+            "url": "#/groups/self",
+            "name": "Groups"
+          }
+        ],
+        "change_table": [
+          "Subject",
+          "Owner"
+        ]
+      }
+
+### Get Diff Preferences
+
+'GET /accounts/{account-id}/preferences.diff'
+
+Retrieves the diff preferences of a user.
+
+Request
+    
+    
+      GET /a/accounts/self/preferences.diff HTTP/1.0
+
+As result the diff preferences of the user are returned as a DiffPreferencesInfo entity.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "context": 10,
+        "ignore_whitespace": "IGNORE_ALL",
+        "intraline_difference": true,
+        "line_length": 100,
+        "cursor_blink_rate": 500,
+        "show_tabs": true,
+        "show_whitespace_errors": true,
+        "syntax_highlighting": true,
+        "tab_size": 8,
+        "font_size": 12
+      }
+
+### Set Diff Preferences
+
+'PUT /accounts/{account-id}/preferences.diff'
+
+Sets the diff preferences of a user.
+
+The new diff preferences must be provided in the request body as a DiffPreferencesInput entity.
+
+Request
+    
+    
+      PUT /a/accounts/self/preferences.diff HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "context": 10,
+        "ignore_whitespace": "IGNORE_ALL",
+        "intraline_difference": true,
+        "line_length": 100,
+        "cursor_blink_rate": 500,
+        "show_line_endings": true,
+        "show_tabs": true,
+        "show_whitespace_errors": true,
+        "syntax_highlighting": true,
+        "tab_size": 8,
+        "font_size": 12
+      }
+
+As result the new diff preferences of the user are returned as a DiffPreferencesInfo entity.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      {
+        "context": 10,
+        "ignore_whitespace": "IGNORE_ALL",
+        "intraline_difference": true,
+        "line_length": 100,
+        "show_line_endings": true,
+        "show_tabs": true,
+        "show_whitespace_errors": true,
+        "syntax_highlighting": true,
+        "tab_size": 8,
+        "font_size": 12
+      }
+
+### Get Edit Preferences
+
+'GET /accounts/{account-id}/preferences.edit'
+
+Retrieves the edit preferences of a user.
+
+Request
+    
+    
+      GET /a/accounts/self/preferences.edit HTTP/1.0
+
+As result the edit preferences of the user are returned as a EditPreferencesInfo entity.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json;charset=UTF-8
+    
+      )]}'
+      {
+        "tab_size": 4,
+        "line_length": 80,
+        "indent_unit": 2,
+        "cursor_blink_rate": 530,
+        "hide_top_menu": true,
+        "show_whitespace_errors": true,
+        "hide_line_numbers": true,
+        "match_brackets": true,
+        "line_wrapping": false,
+        "indent_with_tabs": false,
+        "auto_close_brackets": true
+      }
+
+### Set Edit Preferences
+
+'PUT /accounts/{account-id}/preferences.edit'
+
+Sets the edit preferences of a user.
+
+The new edit preferences must be provided in the request body as a EditPreferencesInfo entity.
+
+Request
+    
+    
+      PUT /a/accounts/self/preferences.edit HTTP/1.0
+      Content-Type: application/json;charset=UTF-8
+    
+      {
+        "tab_size": 4,
+        "line_length": 80,
+        "indent_unit": 2,
+        "cursor_blink_rate": 530,
+        "hide_top_menu": true,
+        "show_tabs": true,
+        "show_whitespace_errors": true,
+        "syntax_highlighting": true,
+        "hide_line_numbers": true,
+        "match_brackets": true,
+        "line_wrapping": false,
+        "auto_close_brackets": true
+      }
+
+As result the new edit preferences of the user are returned as a EditPreferencesInfo entity.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json;charset=UTF-8
+    
+      )]}'
+      {
+        "tab_size": 4,
+        "line_length": 80,
+        "cursor_blink_rate": 530,
+        "hide_top_menu": true,
+        "show_whitespace_errors": true,
+        "hide_line_numbers": true,
+        "match_brackets": true,
+        "auto_close_brackets": true
+      }
+
+### Get Watched Projects
+
+'GET /accounts/{account-id}/watched.projects'
+
+Retrieves all projects a user is watching.
+
+Request
+    
+    
+      GET /a/accounts/self/watched.projects HTTP/1.0
+
+As result the watched projects of the user are returned as a list of ProjectWatchInfo entities. The result is sorted by project name in ascending order.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "project": "Test Project 1",
+          "notify_new_changes": true,
+          "notify_new_patch_sets": true,
+          "notify_all_comments": true,
+        },
+        {
+          "project": "Test Project 2",
+          "filter": "branch:experimental",
+          "notify_all_comments": true,
+          "notify_submitted_changes": true,
+          "notify_abandoned_changes": true
+        }
+      ]
+
+### Add/Update a List of Watched Project Entities
+
+'POST /accounts/{account-id}/watched.projects'
+
+Add new projects to watch or update existing watched projects. Projects that are already watched by a user will be updated with the provided configuration. All other projects in the request will be watched using the provided configuration. The posted body can contain ProjectWatchInfo entities. Omitted boolean values will be set to false.
+
+Request
+    
+    
+      POST /a/accounts/self/watched.projects HTTP/1.0
+      Content-Type: application/json;charset=UTF-8
+    
+      [
+        {
+          "project": "Test Project 1",
+          "notify_new_changes": true,
+          "notify_new_patch_sets": true,
+          "notify_all_comments": true,
+        }
+      ]
+
+As result the watched projects of the user are returned as a list of ProjectWatchInfo entities. The result is sorted by project name in ascending order.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "project": "Test Project 1",
+          "notify_new_changes": true,
+          "notify_new_patch_sets": true,
+          "notify_all_comments": true,
+        },
+        {
+          "project": "Test Project 2",
+          "notify_new_changes": true,
+          "notify_new_patch_sets": true,
+          "notify_all_comments": true,
+        }
+      ]
+
+### Delete Watched Projects
+
+'POST /accounts/{account-id}/watched.projects:delete'
+
+Projects posted to this endpoint will no longer be watched. The posted body can contain a list of ProjectWatchInfo entities.
+
+Request
+    
+    
+      POST /a/accounts/self/watched.projects:delete HTTP/1.0
+      Content-Type: application/json;charset=UTF-8
+    
+      [
+        {
+          "project": "Test Project 1",
+          "filter": "branch:master"
+        }
+      ]
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+### Get Account External IDs
+
+'GET /accounts/{account-id}/external.ids'
+
+Retrieves the external ids of a user account.
+
+Only external ids belonging to the caller may be requested. Users that have [Modify Account](access-control.html#capability_modifyAccount) can request external ids that belong to other accounts.
+
+Request
+    
+    
+      GET /a/accounts/self/external.ids HTTP/1.0
+
+As result the external ids of the user are returned as a list of AccountExternalIdInfo entities.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "identity": "username:john",
+          "email_address": "john.doe@example.com",
+          "trusted": true
+        }
+      ]
+
+### Delete Account External IDs
+
+'POST /accounts/{account-id}/external.ids:delete'
+
+Delete a list of external ids for a user account. The target external ids must be provided as a list in the request body.
+
+Only external ids belonging to the caller may be deleted. Users that have [Modify Account](access-control.html#capability_modifyAccount) can delete external ids that belong to other accounts. External ids in the 'username:' scheme can only be deleted by users that have [Administrate Server](access-control.html#capability_administrateServer) or both [Maintain Server](access-control.html#capability_maintainServer) and [Modify Account](access-control.html#capability__modifyAccount) since the user may not be able to login anymore, after the removal of the external id with scheme 'username:'. Users cannot delete their own external id with scheme 'username:' in order to prevent they can lock themselves out since they may not be able to login anymore.
+
+Request
+    
+    
+      POST /a/accounts/self/external.ids:delete HTTP/1.0
+      Content-Type: application/json;charset=UTF-8
+    
+      [
+        "mailto:john.doe@example.com"
+      ]
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+### List Contributor Agreements
+
+'GET /accounts/{account-id}/agreements'
+
+Gets a list of the user’s signed contributor agreements.
+
+Request
+    
+    
+      GET /a/accounts/self/agreements HTTP/1.0
+
+As response the user’s signed agreements are returned as a list of ContributorAgreementInfo entities.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "name": "Individual",
+          "description": "If you are going to be contributing code on your own, this is the one you want. You can sign this one online.",
+          "url": "static/cla_individual.html"
+        }
+      ]
+
+### Delete Draft Comments
+
+'POST /accounts/{account-id}/drafts:delete'
+
+Deletes some or all of a user’s draft comments. The set of comments to delete is specified as a DeleteDraftCommentsInput entity. An empty input entity deletes all comments.
+
+Only drafts belonging to the caller may be deleted.
+
+Request
+    
+    
+      POST /accounts/self/drafts.delete HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "query": "is:abandoned"
+      }
+
+As a response, a list of DeletedDraftCommentInfo entities is returned.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+       )]}'
+       [
+         {
+           "change": {
+             "id": "myProject~master~I8473b95934b5732ac55d26311a706c9c2bde9940",
+             "project": "myProject",
+             "branch": "master",
+             "change_id": "I8473b95934b5732ac55d26311a706c9c2bde9940",
+             "subject": "Implementing Feature X",
+             "status": "ABANDONED",
+             "created": "2013-02-01 09:59:32.126000000",
+             "updated": "2013-02-21 11:16:36.775000000",
+             "insertions": 34,
+             "deletions": 101,
+             "_number": 3965,
+             "owner": {
+               "name": "John Doe"
+             }
+           },
+           "deleted": [
+             {
+               "id": "TvcXrmjM",
+               "path": "gerrit-server/src/main/java/com/google/gerrit/server/project/RefControl.java",
+               "line": 23,
+               "message": "[nit] trailing whitespace",
+               "updated": "2013-02-26 15:40:43.986000000"
+             }
+           ]
+         }
+       ]
+
+### Sign Contributor Agreement
+
+'PUT /accounts/{account-id}/agreements'
+
+Signs a contributor agreement.
+
+The contributor agreement must be provided in the request body as a ContributorAgreementInput.
+
+Request
+    
+    
+      PUT /accounts/self/agreements HTTP/1.0
+      Content-Type: application/json; charset=UTF-8
+    
+      {
+        "name": "Individual"
+      }
+
+As response the contributor agreement name is returned.
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      "Individual"
+
+### Index Account
+
+'POST /accounts/{account-id}/index'
+
+Adds or updates the account in the secondary index.
+
+Request
+    
+    
+      POST /accounts/1000096/index HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+## Default Star Endpoints
+
+### Get Changes With Default Star
+
+'GET /accounts/{account-id}/starred.changes'
+
+Gets the changes that were starred with the default star by the identified user account. This URL endpoint is functionally identical to the changes query `GET /changes/?q=is:starred`. The result is a list of [ChangeInfo](rest-api-changes.html#change-info) entities.
+
+Request
+    
+    
+      GET /a/accounts/self/starred.changes
+
+Response
+    
+    
+      HTTP/1.1 200 OK
+      Content-Disposition: attachment
+      Content-Type: application/json; charset=UTF-8
+    
+      )]}'
+      [
+        {
+          "id": "myProject~master~I8473b95934b5732ac55d26311a706c9c2bde9940",
+          "project": "myProject",
+          "branch": "master",
+          "change_id": "I8473b95934b5732ac55d26311a706c9c2bde9940",
+          "subject": "Implementing Feature X",
+          "status": "NEW",
+          "created": "2013-02-01 09:59:32.126000000",
+          "updated": "2013-02-21 11:16:36.775000000",
+          "starred": true,
+          "stars": [
+            "star"
+          ],
+          "mergeable": true,
+          "submittable": false,
+          "insertions": 145,
+          "deletions": 12,
+          "_number": 3965,
+          "owner": {
+            "name": "John Doe"
+          }
+        }
+      ]
+
+### Put Default Star On Change
+
+'PUT /accounts/{account-id}/starred.changes/[{change-id}](rest-api-changes.html#change-id)'
+
+Star a change with the default label. Changes starred with the default label are returned for the search query `is:starred` or `has:star` and automatically notify the user whenever updates are made to the change.
+
+Request
+    
+    
+      PUT /a/accounts/self/starred.changes/myProject~master~I8473b95934b5732ac55d26311a706c9c2bde9940 HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+### Remove Default Star From Change
+
+'DELETE /accounts/{account-id}/starred.changes/[{change-id}](rest-api-changes.html#change-id)'
+
+Remove the default star label from a change. This stops notifications.
+
+Request
+    
+    
+      DELETE /a/accounts/self/starred.changes/myProject~master~I8473b95934b5732ac55d26311a706c9c2bde9940 HTTP/1.0
+
+Response
+    
+    
+      HTTP/1.1 204 No Content
+
+## IDs
+
+### {account-id}
+
+Identifier that uniquely identifies one account.
+
+This can be:
+
+  * `self` or `me` for the calling user
+
+  * a bare account ID ("18419")
+
+  * an account ID following a name in parentheses ("Full Name (18419)")
+
+  * a string of the format "Full Name <[email@example.com](mailto:email@example.com)>"
+
+  * just the email address ("email@example")
+
+  * a full name ("Full Name")
+
+  * a user name ("username")
+
+In all cases, accounts that are not [visible](config-gerrit.html#accounts.visibility) to the calling user are not considered.
+
+In all cases _except_ a bare account ID and `self`/`me`, inactive accounts are not considered. Inactive accounts should only be referenced by bare ID.
+
+If the input is a bare account ID, this will always resolve to exactly one account if there is a visible account with that ID, and zero accounts otherwise. (This is true even in corner cases like a user having a full name which is exactly a numeric account ID belonging to a different user; such a user cannot be identified by this number.)
+
+If the identifier is ambiguous or only refers to inactive accounts, the error message from the API should contain a human-readable description of how to disambiguate the request.
+
+**Note** : Except as noted above, callers should not rely on the particular priorities of any of the identifiers in the account resolution algorithm. Any other formats may be subject to future deprecation. If callers require specific searching semantics, they should use the Query Account endpoint to resolve a string to one or more accounts, then access the API using the account ID.
+
+### {capability-id}
+
+Identifier of a global capability. Valid values are all field names of the CapabilityInfo entity.
+
+### {email-id}
+
+An email address, or `preferred` for the preferred email address of the user.
+
+### {username}
+
+The user name.
+
+### {ssh-key-id}
+
+The sequence number of the SSH key.
+
+### {gpg-key-id}
+
+A GPG key identifier, either the 8-character hex key reported by `gpg --list-keys`, or the 40-character hex fingerprint (whitespace is ignored) reported by `gpg --list-keys --with-fingerprint`.
+
+## JSON Entities
+
+### AccountDetailInfo
+
+The `AccountDetailInfo` entity contains detailed information about an account.
+
+`AccountDetailInfo` has the same fields as  AccountInfo. In addition `AccountDetailInfo` has the following field:
+
+Field Name |  | Description  
+---|---|---  
+`registered_on` |  | The [timestamp](rest-api.html#timestamp) of when the account was registered.  
+  
+### AccountExternalIdInfo
+
+The `AccountExternalIdInfo` entity contains information for an external id of an account.
+
+Field Name |  | Description  
+---|---|---  
+`identity` |  | The account external id.  
+`email_address` | optional | The email address for the external id.  
+`trusted` | not set if `false` | Whether the external id is trusted.  
+`can_delete` | not set if `false` | Whether the external id can be deleted by the calling user.  
+  
+### AccountInfo
+
+The `AccountInfo` entity contains information about an account.
+
+Field Name |  | Description  
+---|---|---  
+`_account_id` |  | The numeric ID of the account.  
+`name` | optional | The full name of the user.  
+Only set if detailed account information is requested.  
+See option [ DETAILED_ACCOUNTS](rest-api-changes.html#detailed-accounts) for change queries  
+and option DETAILS for account queries.  
+`display_name` | optional | The display name of the user.  
+Only set if detailed account information is requested.  
+See option [ DETAILED_ACCOUNTS](rest-api-changes.html#detailed-accounts) for change queries  
+and option DETAILS for account queries.  
+`email` | optional | The email address the user prefers to be contacted through.  
+Only set if detailed account information is requested.  
+See option [ DETAILED_ACCOUNTS](rest-api-changes.html#detailed-accounts) for change queries  
+and options DETAILS and  ALL_EMAILS for account queries.  
+`secondary_emails` | optional | A list of the secondary email addresses of the user.  
+Only set for account queries when the ALL_EMAILS option or the suggest parameter is set.  
+Secondary emails are only included if the calling user has the [Modify Account](access-control.html#capability_modifyAccount), and hence is allowed to see secondary emails of other users.  
+`username` | optional | The username of the user.  
+Only set if detailed account information is requested.  
+See option [ DETAILED_ACCOUNTS](rest-api-changes.html#detailed-accounts) for change queries  
+and option DETAILS for account queries.  
+`avatars` | optional | List of AvatarInfo  
+entities that provide information about avatar images of the account.  
+`_more_accounts` | optional, not set if `false` | Whether the query would deliver more results if not limited.  
+Only set on the last account that is returned.  
+`status` | optional | Status message of the account.  
+`inactive` | not set if `false` | Whether the account is inactive.  
+`tags` | optional, not set if empty | List of additional tags that this account has. The only  
+current tag an account can have is `SERVICE_USER`.  
+Only set if detailed account information is requested.  
+See option [ DETAILED_ACCOUNTS](rest-api-changes.html#detailed-accounts)  
+  
+### AccountInput
+
+The `AccountInput` entity contains information for the creation of a new account.
+
+Field Name |  | Description  
+---|---|---  
+`username` | optional | The user name. If provided, must match the user name from the URL.  
+`name` | optional | The full name of the user.  
+`display_name` | optional | The display name of the user.  
+`email` | optional | The email address of the user.  
+`ssh_key` | optional | The public SSH key of the user.  
+`http_password` | optional | The HTTP password of the user.  
+`groups` | optional | A list of [group IDs](rest-api-groups.html#group-id) that identify the groups to which the user should be added.  
+  
+### AccountNameInput
+
+The `AccountNameInput` entity contains information for setting a name for an account.
+
+Field Name |  | Description  
+---|---|---  
+`name` | optional | The new full name of the account.  
+If not set or if set to an empty string, the account name is deleted.  
+  
+### AccountStatusInput
+
+The `AccountStatusInput` entity contains information for setting a status for an account.
+
+Field Name |  | Description  
+---|---|---  
+`status` | optional | The new status of the account.  
+If not set or if set to an empty string, the account status is deleted.  
+  
+### AvatarInfo
+
+The `AccountInfo` entity contains information about an avatar image of an account.
+
+Field Name | Description  
+---|---  
+`url` | The URL to the avatar image.  
+`height` | The height of the avatar image in pixels.  
+`width` | The width of the avatar image in pixels.  
+  
+### CapabilityInfo
+
+The `CapabilityInfo` entity contains information about the global capabilities of a user.
+
+Field Name |  | Description  
+---|---|---  
+`accessDatabase` | not set if `false` | Whether the user has the [Access Database](access-control.html#capability_accessDatabase) capability.  
+`administrateServer` | not set if `false` | Whether the user has the [Administrate Server](access-control.html#capability_administrateServer) capability.  
+`createAccount` | not set if `false` | Whether the user has the [Create Account](access-control.html#capability_createAccount) capability.  
+`createGroup` | not set if `false` | Whether the user has the [Create Group](access-control.html#capability_createGroup) capability.  
+`createProject` | not set if `false` | Whether the user has the [Create Project](access-control.html#capability_createProject) capability.  
+`emailReviewers` | not set if `false` | Whether the user has the [Email Reviewers](access-control.html#capability_emailReviewers) capability.  
+`flushCaches` | not set if `false` | Whether the user has the [Flush Caches](access-control.html#capability_flushCaches) capability.  
+`killTask` | not set if `false` | Whether the user has the [Kill Task](access-control.html#capability_kill) capability.  
+`maintainServer` | not set if `false` | Whether the user has the [Maintain Server](access-control.html#capability_maintainServer) capability.  
+`priority` | not set if `INTERACTIVE` | The name of the thread pool used by the user, see [ Priority](access-control.html#capability_priority) capability.  
+`queryLimit` |  | The [ Query Limit](access-control.html#capability_queryLimit) of the user as QueryLimitInfo.  
+`runAs` | not set if `false` | Whether the user has the [Run As](access-control.html#capability_runAs) capability.  
+`runGC` | not set if `false` | Whether the user has the [Run Garbage Collection](access-control.html#capability_runGC) capability.  
+`streamEvents` | not set if `false` | Whether the user has the [Stream Events](access-control.html#capability_streamEvents) capability.  
+`viewAllAccounts` | not set if `false` | Whether the user has the [View All Accounts](access-control.html#capability_viewAllAccounts) capability.  
+`viewCaches` | not set if `false` | Whether the user has the [View Caches](access-control.html#capability_viewCaches) capability.  
+`viewConnections` | not set if `false` | Whether the user has the [View Connections](access-control.html#capability_viewConnections) capability.  
+`viewPlugins` | not set if `false` | Whether the user has the [View Plugins](access-control.html#capability_viewPlugins) capability.  
+`viewQueue` | not set if `false` | Whether the user has the [View Queue](access-control.html#capability_viewQueue) capability.  
+`viewSecondaryEmails` | not set if `false` | Whether the user has the [View Secondary Emails](access-control.html#capability_viewSecondaryEmails) capability.  
+  
+### ContributorAgreementInfo
+
+The `ContributorAgreementInfo` entity contains information about a contributor agreement.
+
+Field Name |  | Description  
+---|---|---  
+`name` |  | The unique name of the contributor agreement.  
+`description` |  | The description of the contributor agreement.  
+`url` |  | The URL of the contributor agreement.  
+`auto_verify_group` | optional | The group to which a user that signs the contributor agreement online is added automatically as a [ GroupInfo](rest-api-groups.html#group-info) entity. If not set, users cannot sign the contributor agreement online.  
+  
+### ContributorAgreementInput
+
+The `ContributorAgreementInput` entity contains information about a new contributor agreement.
+
+Field Name | Description  
+---|---  
+`name` | The name of the agreement.  
+  
+### DeleteDraftCommentsInput
+
+The `DeleteDraftCommentsInput` entity contains information specifying a set of draft comments that should be deleted.
+
+Field Name |  | Description  
+---|---|---  
+`query` | optional | A [change query](user-search.html) limiting results to changes matching this query; `has:draft` is implied and not necessary to list explicitly. If not set, matches all changes with drafts.  
+  
+### DeletedDraftCommentInfo
+
+The `DeletedDraftCommentInfo` entity contains information about draft comments that were deleted.
+
+Field Name | Description  
+---|---  
+`change` | [ChangeInfo](rest-api-changes.html#change-info) entity describing the change on which one or more comments was deleted. Populated with no change list options.  
+`deleted` | List of [CommentInfo](rest-api-changes.html#comment-info) entities for each comment that was deleted.  
+  
+### DiffPreferencesInfo
+
+The `DiffPreferencesInfo` entity contains information about the diff preferences of a user.
+
+Field Name |  | Description  
+---|---|---  
+`context` |  | The number of lines of context when viewing a patch.  
+`expand_all_comments` | not set if `false` | Whether all inline comments should be automatically expanded.  
+`ignore_whitespace` |  | Whether whitespace changes should be ignored and if yes, which whitespace changes should be ignored.  
+Allowed values are `IGNORE_NONE`, `IGNORE_TRAILING`, `IGNORE_LEADING_AND_TRAILING`, `IGNORE_ALL`.  
+`intraline_difference` | not set if `false` | Whether intraline differences should be highlighted.  
+`line_length` |  | Number of characters that should be displayed in one line.  
+`cursor_blink_rate` |  | Half-period in milliseconds used for cursor blinking. Setting it to 0 disables cursor blinking.  
+`manual_review` | not set if `false` | Whether the 'Reviewed' flag should not be set automatically on a patch when it is viewed.  
+`retain_header` | not set if `false` | Whether the header that is displayed above the patch (that either shows the commit message, the diff preferences, the patch sets or the files) should be retained on file switch.  
+`show_line_endings` | not set if `false` | Whether Windows EOL/Cr-Lf should be displayed as '\r' in a dotted-line box.  
+`show_tabs` | not set if `false` | Whether tabs should be shown.  
+`show_whitespace_errors` | not set if `false` | Whether whitespace errors should be shown.  
+`skip_deleted` | not set if `false` | Whether deleted files should be skipped on file switch.  
+`skip_uncommented` | not set if `false` | Whether uncommented files should be skipped on file switch.  
+`syntax_highlighting` | not set if `false` | Whether syntax highlighting should be enabled.  
+`hide_top_menu` | not set if `false` | If true the top menu header and site header are hidden.  
+`auto_hide_diff_table_header` | not set if `false` | If true the diff table header is automatically hidden when scrolling down more than half of a page.  
+`hide_line_numbers` | not set if `false` | If true the line numbers are hidden.  
+`tab_size` |  | Number of spaces that should be used to display one tab.  
+`font_size` |  | Default font size in pixels for change to be displayed in the diff view.  
+'hide_empty_pane' | not set if `false` | Whether empty panes should be hidden. The left pane is empty when a file was added; the right pane is empty when a file was deleted.  
+`match_brackets` | not set if `false` | Whether matching brackets should be highlighted.  
+`line_wrapping` | not set if `false` | Whether to enable line wrapping or not.  
+  
+### DiffPreferencesInput
+
+The `DiffPreferencesInput` entity contains information for setting the diff preferences of a user. Fields which are not set will not be updated.
+
+Field Name |  | Description  
+---|---|---  
+`context` | optional | The number of lines of context when viewing a patch.  
+`expand_all_comments` | optional | Whether all inline comments should be automatically expanded.  
+`ignore_whitespace` | optional | Whether whitespace changes should be ignored and if yes, which whitespace changes should be ignored.  
+Allowed values are `IGNORE_NONE`, `IGNORE_TRAILING`, `IGNORE_LEADING_AND_TRAILING`, `IGNORE_ALL`.  
+`intraline_difference` | optional | Whether intraline differences should be highlighted.  
+`line_length` | optional | Number of characters that should be displayed in one line.  
+`manual_review` | optional | Whether the 'Reviewed' flag should not be set automatically on a patch when it is viewed.  
+`retain_header` | optional | Whether the header that is displayed above the patch (that either shows the commit message, the diff preferences, the patch sets or the files) should be retained on file switch.  
+`show_line_endings` | optional | Whether Windows EOL/Cr-Lf should be displayed as '\r' in a dotted-line box.  
+`show_tabs` | optional | Whether tabs should be shown.  
+`show_whitespace_errors` | optional | Whether whitespace errors should be shown.  
+`skip_deleted` | optional | Whether deleted files should be skipped on file switch.  
+`skip_uncommented` | optional | Whether uncommented files should be skipped on file switch.  
+`syntax_highlighting` | optional | Whether syntax highlighting should be enabled.  
+`hide_top_menu` | optional | True if the top menu header and site header should be hidden.  
+`auto_hide_diff_table_header` | optional | True if the diff table header is automatically hidden when scrolling down more than half of a page.  
+`hide_line_numbers` | optional | True if the line numbers should be hidden.  
+`tab_size` | optional | Number of spaces that should be used to display one tab.  
+`font_size` | optional | Default font size in pixels for change to be displayed in the diff view.  
+`line_wrapping` | optional | Whether to enable line wrapping or not.  
+`indent_with_tabs` | optional | Whether to enable indent with tabs or not.  
+  
+### EditPreferencesInfo
+
+The `EditPreferencesInfo` entity contains information about the edit preferences of a user.
+
+Field Name |  | Description  
+---|---|---  
+`tab_size` |  | Number of spaces that should be used to display one tab.  
+`line_length` |  | Number of characters that should be displayed per line.  
+`indent_unit` |  | Number of spaces that should be used for auto-indent.  
+`cursor_blink_rate` |  | Half-period in milliseconds used for cursor blinking. Setting it to 0 disables cursor blinking.  
+`hide_top_menu` | not set if `false` | If true the top menu header and site header is hidden.  
+`show_tabs` | not set if `false` | Whether tabs should be shown.  
+`show_whitespace_errors` | not set if `false` | Whether whitespace errors should be shown.  
+`syntax_highlighting` | not set if `false` | Whether syntax highlighting should be enabled.  
+`hide_line_numbers` | not set if `false` | Whether line numbers should be hidden.  
+`match_brackets` | not set if `false` | Whether matching brackets should be highlighted.  
+`line_wrapping` | not set if `false` | Whether to enable line wrapping or not.  
+`indent_with_tabs` | not set if `false` | Whether to indent with tabs or not.  
+`auto_close_brackets` | not set if `false` | Whether brackets and quotes should be auto-closed during typing.  
+`show_base` | not set if `false` | Whether to show the inline edit base version or not.  
+  
+### EmailInfo
+
+The `EmailInfo` entity contains information about an email address of a user.
+
+Field Name |  | Description  
+---|---|---  
+`email` |  | The email address.  
+`preferred` | not set if `false` | Whether this is the preferred email address of the user.  
+`pending_confirmation` | not set if `false` | Set true if the user must confirm control of the email address by following a verification link before Gerrit will permit use of this address.  
+  
+### EmailInput
+
+The `EmailInput` entity contains information for registering a new email address.
+
+Field Name |  | Description  
+---|---|---  
+`email` |  | The email address. If provided, must match the email address from the URL.  
+`preferred` | `false` if not set | Whether the new email address should become the preferred email address of the user (only supported if `no_confirmation` is set or if the authentication type is `DEVELOPMENT_BECOME_ANY_ACCOUNT`).  
+`no_confirmation` | `false` if not set | Whether the email address should be added without confirmation. In this case no verification email is sent to the user.  
+Only Gerrit administrators are allowed to add email addresses without confirmation.  
+  
+### GpgKeyInfo
+
+The `GpgKeyInfo` entity contains information about a GPG public key.
+
+Field Name |  | Description  
+---|---|---  
+`id` | Not set in map context | The 8-char hex GPG key ID.  
+`fingerprint` | Not set for deleted keys | The 40-char (plus spaces) hex GPG key fingerprint.  
+`user_ids` | Not set for deleted keys | [OpenPGP User IDs](https://tools.ietf.org/html/rfc4880#section-5.11) associated with the public key.  
+`key` | Not set for deleted keys | ASCII armored public key material.  
+`status` | Not set for deleted keys | The result of server-side checks on the key; one of `BAD`, `OK`, or `TRUSTED`. `BAD` keys have serious problems and should not be used. If a key is `OK, inspecting only that key found no problems, but the system does not fully trust the key’s origin. A `TRUSTED` key is valid, and the system knows enough about the key and its origin to trust it.  
+`problems` | Not set for deleted keys | A list of human-readable problem strings found in the course of checking whether the key is valid and trusted.  
+  
+### GpgKeysInput
+
+The `GpgKeysInput` entity contains information for adding/deleting GPG keys.
+
+Field Name | Description  
+---|---  
+`add` | List of ASCII armored public key strings to add.  
+`delete` | List of `{gpg-key-id}`s to delete.  
+  
+### HttpPasswordInput
+
+The `HttpPasswordInput` entity contains information for setting/generating an HTTP password.
+
+Field Name |  | Description  
+---|---|---  
+`generate` | `false` if not set | Whether a new HTTP password should be generated  
+`http_password` | optional | The new HTTP password. Only Gerrit administrators may set the HTTP password directly.  
+If empty or not set and `generate` is false or not set, the HTTP password is deleted.  
+  
+### OAuthTokenInfo
+
+The `OAuthTokenInfo` entity contains information about an OAuth access token.
+
+Field Name |  | Description  
+---|---|---  
+`username` |  | The owner of the OAuth access token.  
+`resource_host` |  | The host of the Gerrit instance.  
+`access_token` |  | The actual token value.  
+`provider_id` | optional | The identifier of the OAuth provider in the form `plugin-name:provider-name`.  
+`expires_at` | optional | Time of expiration of this token in milliseconds.  
+`type` |  | The type of the OAuth access token, always `bearer`.  
+  
+### PreferencesInfo
+
+The `PreferencesInfo` entity contains information about a user’s preferences.
+
+Field Name |  | Description  
+---|---|---  
+`changes_per_page` |  | The number of changes to show on each page. Allowed values are `10`, `25`, `50`, `100`.  
+`theme` |  | Which theme to use. Allowed values are `AUTO` or `DARK` or `LIGHT`.  
+`expand_inline_diffs` | not set if `false` | Whether to expand diffs inline instead of opening as separate page (Gerrit web app UI only).  
+`download_scheme` | optional | The type of download URL the user prefers to use. May be any key from the `schemes` map in [DownloadInfo](rest-api-config.html#download-info).  
+`date_format` |  | The format to display the date in. Allowed values are `STD`, `US`, `ISO`, `EURO`, `UK`.  
+`time_format` |  | The format to display the time in. Allowed values are `HHMM_12`, `HHMM_24`.  
+`relative_date_in_change_table` | not set if `false` | Whether to show relative dates in the changes table.  
+`diff_view` |  | The type of diff view to show. Allowed values are `SIDE_BY_SIDE`, `UNIFIED_DIFF`.  
+`size_bar_in_change_table` | not set if `false` | Whether to show the change sizes as colored bars in the change table.  
+`legacycid_in_change_table` | not set if `false` | Whether to show change number in the change table.  
+`mute_common_path_prefixes` | not set if `false` | Whether to mute common path prefixes in file names in the file table.  
+`signed_off_by` | not set if `false` | Whether to insert Signed-off-by footer in changes created with the inline edit feature.  
+`allow_browser_notifications` | not set if `false` | Whether to prompt user to enable browser notification in browser.  
+`my` |  | The menu items of the `MY` top menu as a list of [TopMenuItemInfo](rest-api-config.html#top-menu-item-info) entities.  
+`change_table` |  | The columns to display in the change table (Gerrit web app UI only). The default is empty, which will default columns as determined by the frontend.  
+`email_strategy` |  | The type of email strategy to use. On `ENABLED`, the user will receive emails from Gerrit. On `CC_ON_OWN_COMMENTS` the user will also receive emails for their own comments. On `ATTENTION_SET_ONLY`, on emails about changes, the user will receive emails only if they are in the attention set of that change. On `DISABLED` the user will not receive any email notifications from Gerrit. Allowed values are `ENABLED`, `CC_ON_OWN_COMMENTS`, `ATTENTION_SET_ONLY`, `DISABLED`.  
+`default_base_for_merges` |  | The base which should be pre-selected in the 'Diff Against' drop-down list when the change screen is opened for a merge commit. Allowed values are `AUTO_MERGE` and `FIRST_PARENT`.  
+`disable_keyboard_shortcuts` | not set if `false` | Whether to disable all keyboard shortcuts.  
+`disable_token_highlighting` [not set if `false`] Whether to disable token highlighting on hover. | `publish_comments_on_push` | not set if `false`  
+Whether to [publish draft comments](user-upload.html#publish-comments) on push by default. | `work_in_progress_by_default` | not set if `false`  
+  
+### PreferencesInput
+
+The `PreferencesInput` entity contains information for setting the user preferences. Fields which are not set will not be updated.
+
+Field Name |  | Description  
+---|---|---  
+`changes_per_page` | optional | The number of changes to show on each page. Allowed values are `10`, `25`, `50`, `100`.  
+`theme` | optional | Which theme to use. Allowed values are `AUTO` or `DARK` or `LIGHT`.  
+`expand_inline_diffs` | not set if `false` | Whether to expand diffs inline instead of opening as separate page (Gerrit web app UI only).  
+`download_scheme` | optional | The type of download URL the user prefers to use.  
+`date_format` | optional | The format to display the date in. Allowed values are `STD`, `US`, `ISO`, `EURO`, `UK`.  
+`time_format` | optional | The format to display the time in. Allowed values are `HHMM_12`, `HHMM_24`.  
+`relative_date_in_change_table` | optional | Whether to show relative dates in the changes table.  
+`diff_view` | optional | The type of diff view to show. Allowed values are `SIDE_BY_SIDE`, `UNIFIED_DIFF`.  
+`size_bar_in_change_table` | optional | Whether to show the change sizes as colored bars in the change table.  
+`legacycid_in_change_table` | optional | Whether to show change number in the change table.  
+`mute_common_path_prefixes` | optional | Whether to mute common path prefixes in file names in the file table.  
+`signed_off_by` | optional | Whether to insert Signed-off-by footer in changes created with the inline edit feature.  
+`allow_browser_notifications` | not set if `false` | Whether to prompt user to enable browser notification in browser.  
+`my` | optional | The menu items of the `MY` top menu as a list of [TopMenuItemInfo](rest-api-config.html#top-menu-item-info) entities.  
+`change_table` |  | The columns to display in the change table (Gerrit web app UI only). The default is empty, which will default columns as determined by the frontend.  
+`email_strategy` | optional | The type of email strategy to use. On `ENABLED`, the user will receive emails from Gerrit. On `CC_ON_OWN_COMMENTS` the user will also receive emails for their own comments. On `ATTENTION_SET_ONLY`, on emails about changes, the user will receive emails only if they are in the attention set of that change. On `DISABLED` the user will not receive any email notifications from Gerrit. Allowed values are `ENABLED`, `CC_ON_OWN_COMMENTS`, `ATTENTION_SET_ONLY`, `DISABLED`.  
+`default_base_for_merges` | optional | The base which should be pre-selected in the 'Diff Against' drop-down list when the change screen is opened for a merge commit. Allowed values are `AUTO_MERGE` and `FIRST_PARENT`.  
+`disable_keyboard_shortcuts` | not set if `false` | Whether to disable all keyboard shortcuts.  
+  
+### QueryLimitInfo
+
+The `QueryLimitInfo` entity contains information about the [Query Limit](access-control.html#capability_queryLimit) of a user.
+
+Field Name | Description  
+---|---  
+`min` | Lower limit.  
+`max` | Upper limit.  
+  
+### SshKeyInfo
+
+The `SshKeyInfo` entity contains information about an SSH key of a user.
+
+Field Name |  | Description  
+---|---|---  
+`seq` |  | The sequence number of the SSH key.  
+`ssh_public_key` |  | The complete public SSH key.  
+`encoded_key` |  | The encoded key.  
+`algorithm` |  | The algorithm of the SSH key.  
+`comment` | optional | The comment of the SSH key.  
+`valid` |  | Whether the SSH key is valid.  
+  
+### UsernameInput
+
+The `UsernameInput` entity contains information for setting the username for an account.
+
+Field Name | Description  
+---|---  
+`username` | The new username of the account.  
+  
+### DisplayNameInput
+
+The `DisplayNameInput` entity contains information for setting the display name for an account.
+
+Field Name | Description  
+---|---  
+`display_name` | The new display name of the account.  
+  
+### ProjectWatchInfo
+
+The `WatchedProjectsInfo` entity contains information about a project watch for a user.
+
+Field Name |  | Description  
+---|---|---  
+`project` |  | The name of the project.  
+`filter` | optional | A filter string to be applied to the project.  
+`notify_new_changes` | optional | Notify on new changes.  
+`notify_new_patch_sets` | optional | Notify on new patch sets.  
+`notify_all_comments` | optional | Notify on comments.  
+`notify_submitted_changes` | optional | Notify on submitted changes.  
+`notify_abandoned_changes` | optional | Notify on abandoned changes.  
+  
+* * *
+
+Part of [Gerrit Code Review](index.html)
+
+Search 
+
+Version v3.8.3  
+

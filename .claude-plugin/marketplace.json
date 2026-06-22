@@ -1,0 +1,15 @@
+{
+  "name": "bicv-skills",
+  "owner": {
+    "name": "bicv"
+  },
+  "description": "BICV 跨平台 skill 能力包（Claude Code + Codex）",
+  "plugins": [
+    {
+      "name": "bicv-skills",
+      "source": "./",
+      "description": "整套 BICV skill 能力包（gerrit / jenkins / zentao 等）",
+      "skills": ["./skills/"]
+    }
+  ]
+}

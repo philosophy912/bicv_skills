@@ -1,0 +1,16 @@
+[project]
+name = "bicv-skills"
+version = "0.0.1"
+description = "BICV 跨平台 skill 能力包（Claude Code + Codex），通过 plugin marketplace 安装"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "bicv" }]
+
+# 本项目通过 plugin marketplace 安装，无需打包成 wheel。
+# pyproject.toml 保留为元信息文件，build-system 设为 trivial 后不会触发构建。
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
