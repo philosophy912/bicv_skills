@@ -19,13 +19,41 @@
 
 ## 安装
 
-在 Claude Code 或 Codex 中执行：
+按平台分开装,同一个仓库装一次就够。
 
-```
-/plugin marketplace add <owner>/bicv_skills
-```
+### Claude Code
 
-（`marketplace.json` 已声明 `name: bicv-skills`，按对应平台的语法替换 `<owner>/bicv_skills` 为实际仓库路径。）
+Claude Code 用 `.claude-plugin/marketplace.json`(plugin name: `bicv-skills`)。
+
+- 注册 marketplace(指向本仓库):
+
+  ```bash
+  /plugin marketplace add <owner>/bicv_skills
+  ```
+
+- 安装 plugin:
+
+  ```bash
+  /plugin install bicv-skills@bicv-skills
+  ```
+
+### Codex
+
+Codex 用 `.agents/plugins/marketplace.json`(同 plugin name)。
+
+- 在 Codex 中执行:
+
+  ```bash
+  /plugin marketplace add <owner>/bicv_skills
+  ```
+
+- 安装 plugin:
+
+  ```bash
+  /plugin install bicv-skills@bicv-skills
+  ```
+
+> 把 `<owner>/bicv_skills` 替换成实际仓库路径,例如 `your-org/bicv_skills` 或本地 `file:///abs/path/to/bicv_skills`。
 
 ## 配置
 
