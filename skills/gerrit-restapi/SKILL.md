@@ -253,6 +253,7 @@ python3 scripts/gerrit_api.py post-review --change-id "project~master~I123456" -
 - `accounts-endpoints.md`：账号相关端点
 - `groups-endpoints.md`：用户组相关端点
 - `safety-confirmation-matrix.md`：高危/严重操作确认矩阵
+- `config-schema.md`：本 skill 配置文件 `~/.bicv/gerrit.json` 的字段说明
 
 ### scripts/ 目录
 

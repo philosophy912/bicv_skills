@@ -23,7 +23,7 @@ def get_system(system_name: str | None = None) -> dict:
     except ServiceError as exc:
         sys.exit(
             f"[{CONFIG_NAME}] 无法加载配置：{exc}\n"
-            f"请创建 ~/.bicv/{CONFIG_NAME}，结构见 docs/specs/config-spec.md"
+            f"请创建 ~/.bicv/{CONFIG_NAME}，结构见 docs/config-spec.md"
         )
 
     systems = config["systems"]

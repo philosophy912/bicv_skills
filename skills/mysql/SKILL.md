@@ -166,3 +166,5 @@ python3 scripts/mysql_query.py <select|insert|update> <sql_or_file> [-d DATABASE
 - 支持跨数据库查询（`-d` 参数覆盖默认数据库）
 
 详细示例和最佳实践参考：`references/usage_guide.md`
+
+配置文件 `~/.bicv/database.json` 的字段说明：`references/config-schema.md`

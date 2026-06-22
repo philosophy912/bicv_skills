@@ -203,6 +203,7 @@ python3 scripts/jenkins_api.py stop-build --job "folder/demo" --number 42 --user
 关键参考：
 - `jenkins-remote-api.md`：Remote API 协议、认证、Crumb、depth 与常见端点
 - `safety-confirmation-matrix.md`：高危/严重操作确认矩阵
+- `config-schema.md`：本 skill 配置文件 `~/.bicv/jenkins.json` 的字段说明
 
 ### scripts/ 目录
 

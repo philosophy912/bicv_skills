@@ -17,43 +17,68 @@ cp -r skills/_template skills/<你的 skill 名>
 
 ## 3. 写脚本
 
-脚本放 `scripts/`。读取配置统一通过 `shared.system_config.load_systems_config()`：
+脚本放 `scripts/`，依赖 `shared.system_config`：
 
 ```python
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from shared.system_config import ServiceError, load_systems_config
+from shared.system_config import ServiceError, load_systems_config  # noqa: E402
 
-config = load_systems_config("<skill-name>.json")
-systems = config["systems"]
-# 按 --system 参数挑选，或默认取唯一一个
+CONFIG_NAME = "<skill-name>.json"  # 与 skill 目录名一致
+
+
+def get_system(system_name: str | None = None) -> dict:
+    try:
+        config = load_systems_config(CONFIG_NAME)
+    except ServiceError as exc:
+        sys.exit(
+            f"[{CONFIG_NAME}] 无法加载配置：{exc}\n"
+            f"请创建 ~/.bicv/{CONFIG_NAME}，结构见 docs/config-spec.md"
+        )
+
+    systems = config["systems"]
+    if system_name is None:
+        return systems
+    if system_name not in systems:
+        names = ", ".join(systems.keys())
+        sys.exit(f"[{CONFIG_NAME}] system {system_name!r} 不存在。可选：{names}")
+    return systems[system_name]
 ```
 
-不需要配置的 skill（纯本地工具），脚本不依赖 `shared.system_config` 即可。
+`shared/` 在 `skills/shared/`，`sys.path` 注入用的是「脚本 → skill 根 → `skills/`」即 `parent.parent.parent`，这样 plugin 复制到平台 cache 后路径仍正确。
 
-> ⚠️ **不要用相对路径或硬编码 `~/.bicv/` 绝对路径**——走 `shared.system_config` 是约定，能让 plugin 安装到不同平台 cache 目录后仍正常工作。完整规范见 [config 规范](specs/config-spec.md)。
+参考完整示例：`skills/_template/scripts/example.py`。
 
-## 4. 多系统实例
+## 4. 写配置说明
 
-如果你的 skill 可能配置多套连接（例如多个 Gerrit、多个 MySQL），`systems` 字典里放多个 key，让用户用 `--system <name>` 切换。如果只有一套，约定一个固定名字（如 `default`），调用方传 `--system default`。
+每个 skill 在自己的 `references/config-schema.md` 里声明：
 
-## 5. marketplace 注册
+- `config_name`：本 skill 用的配置文件名（例 `gerrit.json`）
+- 字段表：本 skill 支持哪些字段、是否必填、说明
+- 示例 JSON
+
+格式参考 `skills/gerrit-restapi/references/config-schema.md`。
+
+通用规范（路径、顶层 `systems` 结构、加载机制）见 [config 规范](config-spec.md)。
+
+## 5. 多系统实例
+
+如果可能配置多套连接（多个 Gerrit、多个 MySQL 等），`systems` 字典里放多个 key，让用户用 `--system <name>` 切换。如果只有一套，约定一个固定名字（通常叫 `default`）。
+
+## 6. 注册
 
 当前所有 skill 打包在一个 plugin（`bicv-skills`），从 `skills/` 自动加载，**无需手动注册**。
 
-如果想加新 plugin（拆分成多个 marketplace），编辑：
+只在拆分成多个 plugin 时才需要编辑：
 
 - `.claude-plugin/marketplace.json`（Claude Code 侧）
 - `.agents/plugins/marketplace.json`（Codex 侧）
 
-## 6. 本地测试
+## 7. 本地测试
 
 ```bash
-# 配置 ~/.bicv/<skill-name>.json（手写或用其它工具）
 mkdir -p ~/.bicv && vim ~/.bicv/<skill-name>.json
-
-# 验证脚本能加载配置
 python skills/<你的 skill 名>/scripts/<xxx>.py --system <name>
 ```

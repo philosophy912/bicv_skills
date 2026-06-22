@@ -29,10 +29,9 @@
 
 ## 配置
 
-各 skill 凭据统一存在 `~/.bicv/<skill-name>.json`，结构必须包含 `systems` 字典，支持多实例（多套 Gerrit、多套 Jenkins 等），CLI 通过 `--system <name>` 切换。详见 [config 规范](docs/specs/config-spec.md)。
+各 skill 凭据统一存在 `~/.bicv/<skill-name>.json`，结构必须包含 `systems` 字典，支持多实例（多套 Gerrit、多套 Jenkins 等），CLI 通过 `--system <name>` 切换。详见 [config 规范](docs/config-spec.md)。
 
 ## 文档
 
-- [config 规范](docs/specs/config-spec.md)
+- [config 规范](docs/config-spec.md)
 - [如何新增 skill](docs/writing-a-skill.md)
-- [设计计划](docs/plans/plugin-system-plan.md)
