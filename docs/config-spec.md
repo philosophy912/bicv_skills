@@ -37,7 +37,7 @@
 
 ## 加载机制
 
-脚本通过 `shared.system_config.load_systems_config(config_name)` 加载，错误处理统一为 `ServiceError`：
+脚本通过 `system_config.load_systems_config(config_name)` 加载，错误处理统一为 `ServiceError`：
 
 - 路径越出家目录 → `Config file must live under the user home directory`
 - 文件不存在 → `Cannot find config file: <path>`

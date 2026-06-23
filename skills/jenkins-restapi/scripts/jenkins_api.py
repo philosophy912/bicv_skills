@@ -6,13 +6,10 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-import sys
-from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from shared.system_config import (
+from system_config import (
     ServiceError,
     ServiceTarget,
     resolve_target,

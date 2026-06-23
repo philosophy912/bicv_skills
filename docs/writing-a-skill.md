@@ -1,10 +1,29 @@
 # 如何新增一个 skill
 
-## 1. 复制模板
+## 1. 起骨架
+
+参考一个最接近的现有 skill 复制改：
 
 ```bash
-cp -r docs/skill-template skills/<你的 skill 名>
+# 例：要写一个新的 REST API skill，参考 zentao-restapi
+cp -r skills/zentao-restapi skills/<你的 skill 名>
+# 然后删掉它的 scripts/zentao_api.py、tests/、references/，只留骨架（SKILL.md + scripts/system_config.py + conftest.py）
 ```
+
+每个 skill 目录至少要有：
+
+```
+skills/<你的 skill 名>/
+├── SKILL.md                # frontmatter + 使用说明
+├── scripts/
+│   ├── <xxx>_api.py        # 主脚本
+│   └── system_config.py    # 配置解析底座（从现有 skill 复制，不要改）
+├── conftest.py             # 把 scripts/ 加入 sys.path（放 skill 根目录）
+└── tests/
+    └── test_<xxx>_api.py   # ⚠️ 必须有，覆盖率 ≥90%
+```
+
+`system_config.py` 直接从任一现有 skill 的 `scripts/` 复制，保持 4 份一致，**不要改它**。
 
 ## 2. 编辑 SKILL.md
 
@@ -17,14 +36,12 @@ cp -r docs/skill-template skills/<你的 skill 名>
 
 ## 3. 写脚本
 
-脚本放 `scripts/`，依赖 `shared.system_config`：
+脚本放 `scripts/`，依赖同目录的 `system_config.py`：
 
 ```python
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from shared.system_config import ServiceError, load_systems_config  # noqa: E402
+from system_config import ServiceError, load_systems_config  # noqa: E402
 
 CONFIG_NAME = "<skill-name>.json"  # 与 skill 目录名一致
 
@@ -47,9 +64,9 @@ def get_system(system_name: str | None = None) -> dict:
     return systems[system_name]
 ```
 
-`shared/` 在 `skills/shared/`，`sys.path` 注入用的是「脚本 → skill 根 → `skills/`」即 `parent.parent.parent`，这样 plugin 复制到平台 cache 后路径仍正确。
+`system_config.py` 与脚本同处 `scripts/` 目录，运行时 Python 自动把脚本所在目录加入 `sys.path`，无需手动注入路径。每个 skill 各持一份 `system_config.py`，互不依赖——这样 `npx skills` 把各 skill 独立软链接到不同目录时仍能正常 import。
 
-参考完整示例：`docs/skill-template/scripts/example.py`。
+参考完整示例：`skills/zentao-restapi/scripts/zentao_api.py`。
 
 ## 4. 写配置说明
 
@@ -69,14 +86,24 @@ def get_system(system_name: str | None = None) -> dict:
 
 ## 6. 注册
 
-当前所有 skill 打包在一个 plugin（`bicv-skills`），从 `skills/` 自动加载，**无需手动注册**。
+新 skill 只要放在 `skills/<skill-name>/SKILL.md`（带 YAML frontmatter 的 `name` / `description`），就会被 `npx skills add` 自动发现并安装，**无需手动注册**、无需维护 manifest。
 
-只在拆分成多个 plugin 时才需要编辑：
+需要读写 `~/.bicv/<skill>.json` 配置的 skill，把 `system_config.py` 放在 `scripts/` 下与脚本同目录，脚本里直接 `from system_config import ...` 即可（从现有 skill 复制，保持一致）。
 
-- `.claude-plugin/marketplace.json`（Claude Code 侧）
-- `.agents/plugins/marketplace.json`（Codex 侧）
+安装命令见 [README](../README.md#安装)。
 
-## 7. 本地测试
+## 7. 写测试（⚠️ 必做）
+
+每个 skill 脚本必须有单元测试，**行覆盖率 ≥ 90%**。详见 [测试指南](testing-guide.md)。
+
+```bash
+cd skills/<你的 skill 名>
+python3 -m pytest --cov=<module> --cov-report=term-missing -q
+```
+
+参考 `skills/zentao-restapi/tests/test_zentao_api.py` 的风格。不达标不算完成。
+
+## 8. 本地测试（手动验证脚本可跑）
 
 ```bash
 mkdir -p ~/.bicv && vim ~/.bicv/<skill-name>.json

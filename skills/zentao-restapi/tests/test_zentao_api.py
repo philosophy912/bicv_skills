@@ -8,7 +8,7 @@ from unittest import mock
 
 import pytest
 
-from shared.system_config import ServiceError
+from system_config import ServiceError
 import zentao_api
 
 # Convenience: a canned ZentaoTarget that doesn't need a real config file.
@@ -848,3 +848,853 @@ class TestPrintSystem:
         zentao_api.print_system(target)
         out = capsys.readouterr().out
         assert out == ""
+
+
+# ===================================================================
+# Additional coverage — appended for >=90% line coverage
+# ===================================================================
+
+
+class TestRequestJsonWithAuthErrors:
+    def test_non_401_error_propagates(self):
+        target = zentao_api.ZentaoTarget(url="http://z.com", auth=("a", "b"))
+        with mock.patch.object(zentao_api, "get_token", return_value="t"):
+            with mock.patch.object(zentao_api, "request_json") as rj:
+                rj.side_effect = ServiceError("boom", status_code=500)
+                with pytest.raises(ServiceError) as exc_info:
+                    zentao_api.request_json_with_auth("GET", "http://z.com", "/bugs", target=target)
+                assert exc_info.value.status_code == 500
+            # No retry / force refresh for non-401
+            assert rj.call_count == 1
+
+    def test_401_with_force_token_does_not_retry(self):
+        target = zentao_api.ZentaoTarget(url="http://z.com", auth=("a", "b"))
+        with mock.patch.object(zentao_api, "get_token", return_value="t") as gt:
+            with mock.patch.object(zentao_api, "request_json") as rj:
+                rj.side_effect = ServiceError("expired", status_code=401)
+                with pytest.raises(ServiceError):
+                    zentao_api.request_json_with_auth(
+                        "GET", "http://z.com", "/bugs", target=target, force_token=True
+                    )
+                assert rj.call_count == 1
+            # force_token path calls get_token only once
+            assert gt.call_count == 1
+
+
+class TestCmdGetToken:
+    def test_get_token_prints_token(self, capsys):
+        with (
+            _mock_target_patch(),
+            mock.patch("zentao_api.get_token", return_value="abc123"),
+        ):
+            args = mock.MagicMock(force=True, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_token(args)
+            out = capsys.readouterr().out
+            assert rc == 0
+            assert "abc123" in out
+
+    def test_get_token_force_false(self, capsys):
+        with (
+            _mock_target_patch(),
+            mock.patch("zentao_api.get_token", return_value="tk") as gt,
+        ):
+            args = mock.MagicMock(force=False, zentao=None, system=None, user=None)
+            zentao_api.cmd_get_token(args)
+            gt.assert_called_once()
+            assert gt.call_args.kwargs["force"] is False
+
+
+class TestMain:
+    def test_main_dispatches_to_handler(self):
+        with mock.patch.object(zentao_api, "build_parser") as bp:
+            args = mock.MagicMock()
+            args.handler = mock.Mock(return_value=0)
+            bp.return_value.parse_args.return_value = args
+            assert zentao_api.main() == 0
+            args.handler.assert_called_once_with(args)
+
+    def test_main_handles_zentao_error(self):
+        with mock.patch.object(zentao_api, "build_parser") as bp:
+            args = mock.MagicMock()
+            args.handler = mock.Mock(side_effect=ServiceError("boom", status_code=500))
+            bp.return_value.parse_args.return_value = args
+            assert zentao_api.main() == 1
+
+    def test_main_handles_system_exit(self):
+        with mock.patch.object(zentao_api, "build_parser") as bp:
+            args = mock.MagicMock()
+            args.handler = mock.Mock(side_effect=SystemExit(2))
+            bp.return_value.parse_args.return_value = args
+            assert zentao_api.main() == 2
+
+    def test_main_handles_system_exit_none_code(self):
+        with mock.patch.object(zentao_api, "build_parser") as bp:
+            args = mock.MagicMock()
+            args.handler = mock.Mock(side_effect=SystemExit())
+            bp.return_value.parse_args.return_value = args
+            assert zentao_api.main() == 0
+
+
+# -- Bug command branch coverage ---------------------------------------------
+
+
+class TestCmdBugBranches:
+    def test_list_bugs_with_project_filter(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(product=None, project=7, page=None, limit=None, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_bugs(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["project"] == 7
+
+    def test_update_bug_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                id=1, title="t", severity=2, pri=3, type="codeerror", status="active",
+                assigned_to="u", keywords="kw", zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_update_bug(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["keywords"] == "kw"
+            assert kwargs["payload"]["assigned_to"] == "u"
+
+    def test_resolve_bug_with_build(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, resolution="fixed", build=5, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_resolve_bug(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["build"] == 5
+
+
+# -- Task command full coverage ----------------------------------------------
+
+
+class TestCmdTaskBranches:
+    def test_list_tasks_by_assigned_to_and_status(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                project=None, execution=None, assigned_to="dev1", status="doing",
+                page=None, limit=None, zentao=None, system=None, user=None,
+            )
+            zentao_api.cmd_list_tasks(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["assignedTo"] == "dev1"
+            assert kwargs["params"]["status"] == "doing"
+
+    def test_list_tasks_with_limit(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                project=None, execution=None, assigned_to=None, status=None,
+                page=1, limit=50, zentao=None, system=None, user=None,
+            )
+            zentao_api.cmd_list_tasks(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["limit"] == 50
+
+    def test_create_task_all_optional(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                project=1, name="T", execution=2, assigned_to="u", estimate=4.0,
+                type="devel", pri=2, desc="d", zentao=None, system=None, user=None,
+            )
+            zentao_api.cmd_create_task(args)
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["execution"] == 2
+            assert kwargs["payload"]["estimate"] == 4.0
+            assert kwargs["payload"]["pri"] == 2
+            assert kwargs["payload"]["desc"] == "d"
+
+    def test_update_task_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                id=1, name="n", assigned_to="u", estimate=1.0, consumed=2.0, left=3.0,
+                status="doing", pri=1, type="devel", desc="d", zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_update_task(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            payload = kwargs["payload"]
+            assert payload["consumed"] == 2.0
+            assert payload["left"] == 3.0
+            assert payload["type"] == "devel"
+
+    def test_close_task(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_close_task(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["status"] == "closed"
+
+    def test_activate_task(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_activate_task(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["status"] == "wait"
+
+    def test_delete_task_confirmed(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_delete_task(args)
+            assert rc == 0
+
+
+# -- Story command full coverage ---------------------------------------------
+
+
+class TestCmdStoryBranches:
+    def test_get_story(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success", "data": {"id": 1}}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_story(args)
+            assert rc == 0
+
+    def test_create_story_all_optional(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=1, title="S", desc="d", pri=2, assigned_to="u",
+                zentao=None, system=None, user=None,
+            )
+            zentao_api.cmd_create_story(args)
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["desc"] == "d"
+            assert kwargs["payload"]["assignedTo"] == "u"
+
+    def test_close_story(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_close_story(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["status"] == "closed"
+
+    def test_activate_story(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_activate_story(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["status"] == "active"
+
+    def test_delete_story_confirmed(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_delete_story(args)
+            assert rc == 0
+
+
+# -- Product commands --------------------------------------------------------
+
+
+class TestCmdProducts:
+    def test_list_products_pagination(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=1, limit=10, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_products(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["page"] == 1
+
+    def test_list_products_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=None, limit=None, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_list_products(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["params"] is None
+
+    def test_get_product(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success", "data": {"id": 1}}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_product(args)
+            assert rc == 0
+
+
+# -- Project commands --------------------------------------------------------
+
+
+class TestCmdProjects:
+    def test_list_projects_with_status(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=None, limit=None, status="wait", zentao=None, system=None, user=None)
+            zentao_api.cmd_list_projects(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["status"] == "wait"
+
+    def test_list_projects_with_pagination(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=2, limit=15, status=None, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_projects(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["page"] == 2
+            assert kwargs["params"]["limit"] == 15
+
+    def test_list_projects_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=None, limit=None, status=None, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_list_projects(args)
+            assert rc == 0
+
+    def test_get_project(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_project(args)
+            assert rc == 0
+
+    def test_create_project_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                name="P", code="c", begin="2026-01-01", end="2026-12-31", desc="d", pm="m",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_create_project(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["PM"] == "m"
+            assert kwargs["payload"]["code"] == "c"
+
+    def test_update_project_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                id=1, name="n", code="c", begin="b", end="e", desc="d", status="s", pm="p",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_update_project(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["pm"] == "p"
+
+    def test_delete_project_confirmed(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_delete_project(args)
+            assert rc == 0
+
+    def test_delete_project_cancelled(self):
+        with (
+            _confirm_no(),
+            mock.patch("zentao_api.request_json_with_auth") as rj,
+        ):
+            with pytest.raises(SystemExit):
+                args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+                zentao_api.cmd_delete_project(args)
+            rj.assert_not_called()
+
+
+# -- Execution commands ------------------------------------------------------
+
+
+class TestCmdExecutions:
+    def test_list_executions_with_project(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(project=3, page=None, limit=None, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_executions(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["project"] == 3
+
+    def test_list_executions_with_pagination(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(project=None, page=3, limit=25, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_executions(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["page"] == 3
+
+    def test_list_executions_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(project=None, page=None, limit=None, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_list_executions(args)
+            assert rc == 0
+
+    def test_get_execution(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_execution(args)
+            assert rc == 0
+
+    def test_create_execution_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                project=1, name="E", begin="b", end="e", desc="d", pm="p",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_create_execution(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["PM"] == "p"
+
+    def test_update_execution_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                id=1, name="n", begin="b", end="e", desc="d", status="s", pm="p",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_update_execution(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["pm"] == "p"
+
+    def test_delete_execution_confirmed(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_delete_execution(args)
+            assert rc == 0
+
+
+# -- Test case command full coverage -----------------------------------------
+
+
+class TestCmdTestcaseBranches:
+    def test_list_testcases_by_project_and_pagination(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=None, project=2, execution=None, page=1, limit=5,
+                zentao=None, system=None, user=None,
+            )
+            zentao_api.cmd_list_testcases(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["project"] == 2
+            assert kwargs["params"]["limit"] == 5
+
+    def test_list_testcases_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=None, project=None, execution=None, page=None, limit=None,
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_list_testcases(args)
+            assert rc == 0
+
+    def test_create_testcase_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=1, title="TC", type="unit", stage="ut", pri=1,
+                precondition="pre", steps="[]", zentao=None, system=None, user=None,
+            )
+            zentao_api.cmd_create_testcase(args)
+            _, kwargs = rj.call_args
+            payload = kwargs["payload"]
+            assert payload["type"] == "unit"
+            assert payload["stage"] == "ut"
+            assert payload["precondition"] == "pre"
+            assert payload["steps"] == "[]"
+
+    def test_update_testcase_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                id=1, title="t", type="unit", stage="ut", pri=1,
+                precondition="pre", steps="[]", status="normal",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_update_testcase(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["status"] == "normal"
+
+    def test_delete_testcase_confirmed(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_delete_testcase(args)
+            assert rc == 0
+
+
+# -- Test task command full coverage -----------------------------------------
+
+
+class TestCmdTesttaskBranches:
+    def test_list_testtasks_with_filters(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=1, project=2, execution=3, page=1, limit=5,
+                zentao=None, system=None, user=None,
+            )
+            zentao_api.cmd_list_testtasks(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["product"] == 1
+            assert kwargs["params"]["execution"] == 3
+
+    def test_list_testtasks_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=None, project=None, execution=None, page=None, limit=None,
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_list_testtasks(args)
+            assert rc == 0
+
+    def test_get_testtask(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_testtask(args)
+            assert rc == 0
+
+    def test_create_testtask_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=1, name="TT", project=2, execution=3, begin="b", end="e", desc="d",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_create_testtask(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["execution"] == 3
+
+    def test_update_testtask_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                id=1, name="n", begin="b", end="e", desc="d", status="s",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_update_testtask(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["status"] == "s"
+
+    def test_delete_testtask_confirmed(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_delete_testtask(args)
+            assert rc == 0
+
+
+# -- User & department commands ----------------------------------------------
+
+
+class TestCmdUsers:
+    def test_list_users_with_dept_and_pagination(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=1, limit=20, dept=5, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_users(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["dept"] == 5
+
+    def test_list_users_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=None, limit=None, dept=None, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_list_users(args)
+            assert rc == 0
+
+    def test_get_user(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_user(args)
+            assert rc == 0
+
+    def test_create_user_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                account="acc", realname="rn", password="pw",
+                email="e@x.com", phone="123", dept=1, role="dev",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_create_user(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            payload = kwargs["payload"]
+            assert payload["email"] == "e@x.com"
+            assert payload["dept"] == 1
+            assert payload["role"] == "dev"
+
+
+class TestCmdDepartments:
+    def test_list_departments_pagination(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=1, limit=10, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_departments(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["page"] == 1
+
+    def test_list_departments_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(page=None, limit=None, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_list_departments(args)
+            assert rc == 0
+
+
+# -- Release commands --------------------------------------------------------
+
+
+class TestCmdReleases:
+    def test_list_releases_with_product(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(product=1, page=None, limit=None, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_releases(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["product"] == 1
+
+    def test_list_releases_with_pagination(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(product=None, page=1, limit=10, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_releases(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["page"] == 1
+            assert kwargs["params"]["limit"] == 10
+
+    def test_list_releases_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(product=None, page=None, limit=None, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_list_releases(args)
+            assert rc == 0
+
+    def test_get_release(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_release(args)
+            assert rc == 0
+
+    def test_create_release_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=1, name="R", build=2, date="2026-01-01", desc="d",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_create_release(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["build"] == 2
+            assert kwargs["payload"]["date"] == "2026-01-01"
+
+    def test_update_release_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                id=1, name="n", build=2, date="d", desc="desc", status="s",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_update_release(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["build"] == 2
+
+    def test_delete_release_confirmed(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_delete_release(args)
+            assert rc == 0
+
+
+# -- Build commands ----------------------------------------------------------
+
+
+class TestCmdBuilds:
+    def test_list_builds_with_product(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(product=1, page=None, limit=None, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_builds(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["product"] == 1
+
+    def test_list_builds_with_pagination(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(product=None, page=1, limit=10, zentao=None, system=None, user=None)
+            zentao_api.cmd_list_builds(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["page"] == 1
+            assert kwargs["params"]["limit"] == 10
+
+    def test_list_builds_no_params(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(product=None, page=None, limit=None, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_list_builds(args)
+            assert rc == 0
+
+    def test_get_build(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_default(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(id=1, zentao=None, system=None, user=None)
+            rc = zentao_api.cmd_get_build(args)
+            assert rc == 0
+
+    def test_create_build_all_fields(self):
+        with contextlib.ExitStack() as stack:
+            _CmdMixin._enter_write(stack)
+            rj = stack.enter_context(mock.patch("zentao_api.request_json_with_auth"))
+            rj.return_value = {"status": "success"}
+            args = mock.MagicMock(
+                product=1, name="B", project=2, builder="me", date="2026-01-01", desc="d",
+                zentao=None, system=None, user=None,
+            )
+            rc = zentao_api.cmd_create_build(args)
+            assert rc == 0
+            _, kwargs = rj.call_args
+            assert kwargs["payload"]["builder"] == "me"
+            assert kwargs["payload"]["project"] == 2

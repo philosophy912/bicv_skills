@@ -3,13 +3,10 @@
 
 import argparse
 import json
-import sys
-from pathlib import Path
 from typing import Any, Callable
 from urllib import error, parse, request
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from shared.system_config import (
+from system_config import (
     ServiceError,
     ServiceTarget,
     resolve_target,

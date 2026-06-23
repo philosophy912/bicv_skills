@@ -1,10 +1,10 @@
 # bicv_skills
 
-跨 **Claude Code** 和 **Codex** 的 skill 能力包，通过 plugin marketplace 安装。
+跨 **Claude Code** / **Codex** / **Hermes** 的 skill 能力包，通过 `npx skills` 一条命令安装到所有已安装的 agent。
 
 ## 这是什么
 
-一套固定的 skill 能力（gerrit / jenkins / zentao / mysql 等），打包成一个 plugin，可通过 `claude plugin marketplace add` 或 `codex plugin marketplace add` 安装到任一平台。
+一套固定的 skill 能力（gerrit / jenkins / zentao / mysql 等），通过 [`npx skills`](https://github.com/vercel-labs/skills) 安装。`npx skills` 会自动检测本机已安装的 agent，把 skill 软链接（Windows 上是 directory junction）到各自的 skills 目录，改一次源码所有 agent 同步生效。
 
 设计参考 [obra/superpowers](https://github.com/obra/Superpowers)，增加「凭据统一管理」能力。
 
@@ -17,45 +17,30 @@
 | `zentao-restapi` | 通过 REST API 操作禅道 |
 | `mysql` | MySQL SELECT / INSERT / UPDATE（禁止 DELETE/DROP/...） |
 
+各 skill 自包含，配置解析模块 `system_config.py` 随 skill 一起安装，不依赖外部共享包。
+
 ## 安装
 
-按平台分开装,同一个仓库装一次就够。
+一条命令通装三平台，替换 `philosophy912/bicv_skills` 为你的实际路径即可：
 
-下面以本仓库 `philosophy912/bicv_skills` 为例,替换成你自己的路径即可。
+```bash
+npx skills add philosophy912/bicv_skills -y -g
+```
 
-### Claude Code
+- `-g` 安装到用户级（所有项目可用），不加则装到当前项目的 `.claude/skills/` 等。
+- `npx skills` 自动检测本机已安装的 agent 并分别链接：
 
-Claude Code 用 `.claude-plugin/marketplace.json`(plugin name: `bicv-skills`)。
+| agent | 全局 skills 路径 |
+|---|---|
+| Claude Code | `~/.claude/skills/<skill>/SKILL.md`（或 `$CLAUDE_CONFIG_DIR/skills`） |
+| Codex | `~/.codex/skills/<skill>/SKILL.md`（或 `$CODEX_HOME/skills`） |
+| Hermes | `~/.hermes/skills/<skill>/SKILL.md`（或 `$HERMES_HOME/skills`） |
 
-- 注册 marketplace:
+> **Codex 兼容性提示：** `npx skills` 给 Codex 装的也是标准 `~/.codex/skills/<skill>/SKILL.md` 树，而非 Codex 原生的 `AGENTS.md` 约定。若你的 Codex 版本不扫描 `~/.codex/skills/`，装了也不会被加载，需要自行把 skill 内容并入 `AGENTS.md`。建议安装后在 Codex 里实测一次。Claude Code 与 Hermes 无此问题。
 
-  ```bash
-  /plugin marketplace add philosophy912/bicv_skills
-  ```
+> **Windows：** `npx skills` 用 directory junction 链接，不需要管理员权限或 Developer Mode；若 junction 创建失败会自动 fallback 到复制。
 
-- 安装 plugin:
-
-  ```bash
-  /plugin install bicv-skills@bicv-skills
-  ```
-
-### Codex
-
-Codex 用 `.agents/plugins/marketplace.json`(同 plugin name)。
-
-- 注册 marketplace:
-
-  ```bash
-  /plugin marketplace add philosophy912/bicv_skills
-  ```
-
-- 安装 plugin:
-
-  ```bash
-  /plugin install bicv-skills@bicv-skills
-  ```
-
-> 替换 `philosophy912/bicv_skills` 为你的实际路径,例如 `your-org/bicv_skills`、本地 `file:///abs/path/to/bicv_skills`,或公司内网 GitLab 地址。
+> 替换 `philosophy912/bicv_skills` 为你的实际路径，例如 `your-org/bicv_skills`、本地 `file:///abs/path/to/bicv_skills`，或公司内网 GitLab 地址。
 
 ## 配置
 
@@ -65,3 +50,4 @@ Codex 用 `.agents/plugins/marketplace.json`(同 plugin name)。
 
 - [config 规范](docs/config-spec.md)
 - [如何新增 skill](docs/writing-a-skill.md)
+- [测试指南](docs/testing-guide.md)（每个 skill 脚本覆盖率 ≥90%）

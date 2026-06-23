@@ -4,13 +4,10 @@
 import argparse
 import base64
 import json
-import sys
-from pathlib import Path
 from typing import Any, Callable
 from urllib import error, parse, request
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from shared.system_config import (
+from system_config import (
     ServiceError,
     ServiceTarget,
     resolve_target,
@@ -533,7 +530,7 @@ def cmd_post_review(args: argparse.Namespace) -> int:
     request_json(
         "POST",
         target.url,
-        f"/changes/{encode_change_id(args.change_id)}/revisions/{args.revision}/review",
+        f"/changes/{encode_change_id(args.change_id)}/revisions/{encode_path_id(args.revision)}/review",
         auth=auth,
         force_auth_prefix=True,
         payload={"message": args.message},

@@ -4,7 +4,7 @@
 No DELETE, DROP, TRUNCATE, ALTER, CREATE, GRANT, REVOKE, SHOW, DESCRIBE.
 
 Supports multiple MySQL server instances via ``~/.bicv/mysql.json`` and the
-shared ``system_config`` module (same path-traversal protection and system
+local ``system_config`` module (same path-traversal protection and system
 matching as Gerrit / Jenkins).
 
 Usage:
@@ -23,9 +23,9 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-# --- shared config module (same path as gerrit_api / jenkins_api) -----------
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from shared.system_config import (
+# --- config module (local copy, same path-traversal protection and system
+# matching as Gerrit / Jenkins) ----------------------------------------------
+from system_config import (
     MySQLConnectionConfig,
     ServiceError,
     print_error,

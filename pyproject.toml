@@ -1,16 +1,41 @@
 [project]
 name = "bicv-skills"
 version = "0.0.1"
-description = "BICV 跨平台 skill 能力包（Claude Code + Codex），通过 plugin marketplace 安装"
+description = "BICV 跨平台 skill 能力包（Claude Code / Codex / Hermes），通过 npx skills 安装"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "bicv" }]
 
-# 本项目通过 plugin marketplace 安装，无需打包成 wheel。
-# pyproject.toml 保留为元信息文件，build-system 设为 trivial 后不会触发构建。
+# 本项目通过 `npx skills add` 安装到各 agent，无需打包成 wheel。
+# pyproject.toml 保留为元信息 + 测试/覆盖率配置文件。
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 py-modules = []
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["skills"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# ---------------------------------------------------------------------------
+# coverage
+# 每个 skill 各持一份 system_config.py，统一纳入统计；
+# 按脚本文件粒度衡量各 skill 是否达标（见 docs/testing-guide.md）。
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+branch = true
+source = ["skills"]
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# 各 skill 脚本本身必须 ≥90%；system_config 由全量测试合并覆盖。
+fail_under = 90
