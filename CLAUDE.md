@@ -65,7 +65,8 @@ python3 skills/<skill-name>/scripts/<xxx>_api.py --help
 ## 安装方式（用户侧，非开发）
 
 ```bash
-npx skills add philosophy912/bicv_skills -y -g
+npx skills add philosophy912/bicv_skills -y -g \
+  --agent claude-code codex hermes-agent openclaw
 ```
 
-详见 [README](README.md)。开发时不需要安装，直接在仓库内改 `skills/` 即可。
+本仓库只支持这四个 agent（`--agent` 显式限定），不装到其它 agent。详见 [README](README.md)。开发时不需要安装，直接在仓库内改 `skills/` 即可。
