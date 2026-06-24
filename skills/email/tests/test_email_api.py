@@ -562,6 +562,19 @@ class TestRender:
         assert "UID" in out
         assert "Hi" in out
 
+    def test_render_table_messages_with_folder_column(self):
+        data = {"system": "default", "folder": "(所有文件夹)", "total": 2,
+                "messages": [
+                    {"uid": 1, "date": "2026-06-24", "from": "a@x.com", "subject": "Hi",
+                     "unread": False, "has_attachments": False, "folder": "INBOX"},
+                    {"uid": 2, "date": "2026-06-23", "from": "b@x.com", "subject": "S2",
+                     "unread": True, "has_attachments": True, "folder": "Sent"},
+                ]}
+        out = email_api.render_table_messages(data)
+        assert "文件夹" in out  # 多了文件夹列
+        assert "INBOX" in out
+        assert "Sent" in out
+
     def test_render_table_folders(self):
         data = {"system": "default", "folders": [{"name": "INBOX", "delimiter": "/", "flags": []}]}
         out = email_api.render_table_folders(data)
@@ -802,7 +815,7 @@ class TestCmdList:
             ("OK", [(b"2 (UID 2 FLAGS (\\Seen) RFC822.SIZE 100)", b"From: b@x.com\r\nSubject: S2\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n")]),
             ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 200)", b"From: a@x.com\r\nSubject: S1\r\nDate: Mon, 23 Jun 2026 10:00:00 +0800\r\n\r\n")]),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX", limit=None, unread_only=False)
+        args = mock.Mock(system=None, format="json", folder="INBOX", limit=None, unread_only=False, all_folders=False)
         rc = email_api.cmd_list(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -826,7 +839,7 @@ class TestCmdList:
             # _fetch_headers for uid 1
             ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 200)", b"From: a@x.com\r\nSubject: S1\r\n\r\n")]),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX", limit=None, unread_only=True)
+        args = mock.Mock(system=None, format="json", folder="INBOX", limit=None, unread_only=True, all_folders=False)
         rc = email_api.cmd_list(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -844,7 +857,7 @@ class TestCmdList:
             ("OK", [b"1"]),
             ("OK", [(b"1 (UID 1 FLAGS (\\Seen) RFC822.SIZE 100)", b"From: a@x.com\r\nSubject: Hi\r\n\r\n")]),
         ]
-        args = mock.Mock(system=None, format="table", folder="INBOX", limit=None, unread_only=False)
+        args = mock.Mock(system=None, format="table", folder="INBOX", limit=None, unread_only=False, all_folders=False)
         rc = email_api.cmd_list(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -941,7 +954,7 @@ class TestCmdRead:
             ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", b"From: gerrit@x.com\r\nSubject: Review\r\n\r\n")]),
         ]
         args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter="gerrit", subject=None, since=None, limit=None)
+                         from_filter="gerrit", subject=None, since=None, limit=None, all_folders=False)
         rc = email_api.cmd_search(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -951,7 +964,7 @@ class TestCmdRead:
     def test_search_no_criteria(self, mock_cfg):
         mock_cfg.return_value = _make_config()
         args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter=None, subject=None, since=None, limit=None)
+                         from_filter=None, subject=None, since=None, limit=None, all_folders=False)
         with pytest.raises(ServiceError, match="至少需要"):
             email_api.cmd_search(args)
 
@@ -964,7 +977,7 @@ class TestCmdRead:
         server.select.return_value = ("OK", [b"0"])
         server.uid.return_value = ("OK", [b""])
         args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter=None, subject=None, since="2026-06-01", limit=None)
+                         from_filter=None, subject=None, since="2026-06-01", limit=None, all_folders=False)
         rc = email_api.cmd_search(args)
         assert rc == 0
         # 验证 SINCE 被转成 IMAP 格式
@@ -983,7 +996,7 @@ class TestCmdRead:
             ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", b"From: a@x.com\r\nSubject: Review\r\n\r\n")]),
         ]
         args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter=None, subject="Review", since=None, limit=None)
+                         from_filter=None, subject="Review", since=None, limit=None, all_folders=False)
         rc = email_api.cmd_search(args)
         assert rc == 0
         # 验证 SUBJECT 条件被传给 SEARCH
@@ -999,7 +1012,7 @@ class TestCmdRead:
         server.select.return_value = ("OK", [b"0"])
         server.uid.return_value = ("NO", [])
         args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter="x", subject=None, since=None, limit=None)
+                         from_filter="x", subject=None, since=None, limit=None, all_folders=False)
         with pytest.raises(ServiceError, match="UID SEARCH 失败"):
             email_api.cmd_search(args)
 
@@ -1017,7 +1030,7 @@ class TestCmdRead:
             ("OK", [(b"2 (UID 2 FLAGS () RFC822.SIZE 100)", b"From: b@x.com\r\nSubject: S2\r\n\r\n")]),
         ]
         args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter="x", subject=None, since=None, limit=None)
+                         from_filter="x", subject=None, since=None, limit=None, all_folders=False)
         rc = email_api.cmd_search(args)
         assert rc == 0
 
@@ -1049,6 +1062,132 @@ class TestCmdFolders:
         args = mock.Mock(system=None, format="json")
         with pytest.raises(ServiceError, match="LIST"):
             email_api.cmd_folders(args)
+
+
+# ---------------------------------------------------------------------------
+# _list_folder_names / _multifolder_search / _multifolder_list
+# ---------------------------------------------------------------------------
+
+
+class TestListFolderNames:
+    def test_returns_folder_names(self):
+        server = mock.MagicMock()
+        server.list.return_value = ("OK", [
+            b'(\\HasNoChildren) "/" "INBOX"',
+            b'(\\HasNoChildren) "/" "Sent"',
+        ])
+        names = email_api._list_folder_names(server)
+        assert names == ["INBOX", "Sent"]
+
+    def test_unparseble_line_falls_back(self):
+        server = mock.MagicMock()
+        server.list.return_value = ("OK", [b"RAW_LINE"])
+        names = email_api._list_folder_names(server)
+        assert names == ["RAW_LINE"]
+
+
+class TestMultiFolderSearch:
+    def test_searches_all_folders(self):
+        server = mock.MagicMock()
+        server.list.return_value = ("OK", [
+            b'(\\HasNoChildren) "/" "INBOX"',
+            b'(\\HasNoChildren) "/" "Sent"',
+        ])
+        server.select.return_value = ("OK", [b"1"])
+        hdr = b"From: a@x.com\r\nSubject: Review\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n"
+        server.uid.side_effect = [
+            ("OK", [b"1"]),  # SEARCH INBOX
+            ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", hdr)]),
+            ("OK", [b""]),  # SEARCH Sent (empty)
+        ]
+        msgs = email_api._multifolder_search(server, ["FROM", "gerrit"], 10)
+        assert len(msgs) == 1
+        assert msgs[0]["folder"] == "INBOX"
+        assert msgs[0]["subject"] == "Review"
+
+    def test_select_failure_is_skipped(self):
+        server = mock.MagicMock()
+        server.list.return_value = ("OK", [b'"BrokenFolder"'])
+        server.select.side_effect = ServiceError("fail")
+        msgs = email_api._multifolder_search(server, ["FROM", "x"], 10)
+        assert msgs == []
+
+
+class TestMultiFolderList:
+    def test_lists_all_folders(self):
+        server = mock.MagicMock()
+        server.list.return_value = ("OK", [
+            b'"INBOX"',
+            b'"Sent"',
+        ])
+        server.select.return_value = ("OK", [b"1"])
+        hdr1 = b"From: a@x.com\r\nSubject: S1\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n"
+        hdr2 = b"From: b@x.com\r\nSubject: S2\r\nDate: Tue, 24 Jun 2025 10:00:00 +0800\r\n\r\n"
+        server.uid.side_effect = [
+            # SEARCH ALL + FETCH for INBOX
+            ("OK", [b"1"]),
+            ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", hdr1)]),
+            # SEARCH ALL + FETCH for Sent
+            ("OK", [b"2"]),
+            ("OK", [(b"2 (UID 2 FLAGS (\\Seen) RFC822.SIZE 200)", hdr2)]),
+        ]
+        msgs = email_api._multifolder_list(server, unread_only=False, limit=10)
+        assert len(msgs) == 2
+        assert msgs[0]["folder"] == "INBOX"  # 按日期倒序，S1 在前
+        assert msgs[1]["folder"] == "Sent"
+
+
+# ---------------------------------------------------------------------------
+# cmd_list / cmd_search --all-folders
+# ---------------------------------------------------------------------------
+
+
+class TestCmdListAllFolders:
+    @mock.patch("email_api.get_imap")
+    @mock.patch("email_api.resolve_email_config")
+    def test_all_folders_dispatches(self, mock_cfg, mock_imap, capsys):
+        mock_cfg.return_value = _make_config()
+        server = mock.MagicMock()
+        mock_imap.return_value = server
+        server.list.return_value = ("OK", [b'"INBOX"'])
+        server.select.return_value = ("OK", [b"1"])
+        hdr = b"From: a@x.com\r\nSubject: Hi\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n"
+        server.uid.side_effect = [
+            ("OK", [b"1"]),
+            ("OK", [(b"1 (UID 1 FLAGS (\\Seen) RFC822.SIZE 100)", hdr)]),
+        ]
+        args = mock.Mock(system=None, format="json", folder="INBOX",
+                         limit=None, unread_only=False, all_folders=True)
+        rc = email_api.cmd_list(args)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "(所有文件夹)" in out
+        assert server.logout.call_count == 1
+
+
+class TestCmdSearchAllFolders:
+    @mock.patch("email_api.get_imap")
+    @mock.patch("email_api.resolve_email_config")
+    def test_all_folders_dispatches(self, mock_cfg, mock_imap, capsys):
+        mock_cfg.return_value = _make_config()
+        server = mock.MagicMock()
+        mock_imap.return_value = server
+        server.list.return_value = ("OK", [b'"INBOX"'])
+        server.select.return_value = ("OK", [b"1"])
+        hdr = b"From: gerrit@x.com\r\nSubject: Review\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n"
+        server.uid.side_effect = [
+            ("OK", [b"1"]),
+            ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", hdr)]),
+        ]
+        args = mock.Mock(system=None, format="json", folder="INBOX",
+                         from_filter="gerrit", subject=None, since=None,
+                         limit=None, all_folders=True)
+        rc = email_api.cmd_search(args)
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Review" in out
+        assert "INBOX" in out  # folder 字段出现在消息中
+        assert server.logout.call_count == 1
 
 
 class TestCmdMarkRead:

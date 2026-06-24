@@ -699,15 +699,29 @@ def render_json(data: Any) -> str:
 
 def render_table_messages(data: dict) -> str:
     """list/search 的 table 渲染。"""
-    lines = [f"System: {data.get('system', '')}  Folder: {data.get('folder', '')}  共 {data.get('total', 0)} 封"]
-    lines.append("UID  |  日期  |  发件人  |  主题  |  未读  |  附件")
-    for m in data.get("messages", []):
-        unread = "是" if m.get("unread") else "否"
-        attach = "有" if m.get("has_attachments") else "无"
-        lines.append(
-            f"{m.get('uid')}  |  {m.get('date')}  |  {m.get('from')}  |  "
-            f"{m.get('subject')}  |  {unread}  |  {attach}"
-        )
+    messages = data.get("messages", [])
+    # 若消息含 folder 字段（来自 --all-folders），多显示一列
+    has_folder = any(m.get("folder") for m in messages)
+    if has_folder:
+        lines = [f"System: {data.get('system', '')}  Folder: {data.get('folder', '')}  共 {data.get('total', 0)} 封"]
+        lines.append("文件夹  |  UID  |  日期  |  发件人  |  主题  |  未读  |  附件")
+        for m in messages:
+            unread = "是" if m.get("unread") else "否"
+            attach = "有" if m.get("has_attachments") else "无"
+            lines.append(
+                f"{m.get('folder', '')}  |  {m.get('uid')}  |  {m.get('date')}  |  {m.get('from')}  |  "
+                f"{m.get('subject')}  |  {unread}  |  {attach}"
+            )
+    else:
+        lines = [f"System: {data.get('system', '')}  Folder: {data.get('folder', '')}  共 {data.get('total', 0)} 封"]
+        lines.append("UID  |  日期  |  发件人  |  主题  |  未读  |  附件")
+        for m in messages:
+            unread = "是" if m.get("unread") else "否"
+            attach = "有" if m.get("has_attachments") else "无"
+            lines.append(
+                f"{m.get('uid')}  |  {m.get('date')}  |  {m.get('from')}  |  "
+                f"{m.get('subject')}  |  {unread}  |  {attach}"
+            )
     return "\n".join(lines)
 
 
@@ -813,24 +827,99 @@ def _collect_uids(server) -> list[bytes]:
     return uids
 
 
+def _list_folder_names(server) -> list[str]:
+    """列出 IMAP 服务器上所有文件夹名称。从已连接 server 获取。"""
+    status, data = server.list()
+    if status != "OK":
+        raise ServiceError("LIST 文件夹失败")
+    folders: list[str] = []
+    for item in data:
+        if not item:
+            continue
+        line = item.decode("utf-8", errors="replace") if isinstance(item, (bytes, bytearray)) else str(item)
+        # 格式: (\HasNoChildren) "/" "INBOX"  也可能是 (\HasNoChildren) "/" INBOX（不带引号）
+        m = re.match(r'\(([^)]*)\)\s+"([^"]*)"\s+"?([^"]+)"?$', line)
+        if m:
+            name = m.group(3)
+        else:
+            # 备选：提取最后一组以空格分隔的值
+            parts = line.rsplit(" ", 1)
+            name = parts[-1].strip('"') if len(parts) > 1 else line.strip('"')
+        folders.append(name)
+    return folders
+
+
+def _multifolder_search(server, criteria: list[str], limit: int) -> list[dict]:
+    """在所有文件夹中执行 UID SEARCH，汇总结果。单连接内完成。"""
+    folders = _list_folder_names(server)
+    all_messages: list[dict] = []
+    for folder in folders:
+        try:
+            select_folder(server, folder)
+        except ServiceError:
+            continue
+        status, data = server.uid("SEARCH", None, *criteria)
+        if status != "OK":
+            continue
+        raw = data[0] if data and data[0] else b""
+        if isinstance(raw, str):
+            raw = raw.encode()
+        uids = [u for u in raw.split() if u]
+        uids.reverse()
+        uids = uids[:limit]
+        msgs = _fetch_headers(server, uids)
+        for m in msgs:
+            m["folder"] = folder
+        all_messages.extend(msgs)
+    # 按日期降序排列，最新邮件在前
+    all_messages.sort(key=lambda m: m.get("date", ""), reverse=True)
+    return all_messages[:limit]
+
+
+def _multifolder_list(server, unread_only: bool, limit: int) -> list[dict]:
+    """在所有文件夹中列出邮件，汇总结果。单连接内完成。"""
+    folders = _list_folder_names(server)
+    all_messages: list[dict] = []
+    for folder in folders:
+        try:
+            select_folder(server, folder)
+        except ServiceError:
+            continue
+        uids = _collect_uids(server)
+        if unread_only:
+            uids = _filter_unread(server, uids)
+        uids = uids[:limit]
+        msgs = _fetch_headers(server, uids)
+        for m in msgs:
+            m["folder"] = folder
+        all_messages.extend(msgs)
+    all_messages.sort(key=lambda m: m.get("date", ""), reverse=True)
+    return all_messages[:limit]
+
+
 def cmd_list(args) -> int:
     config = resolve_email_config(system=args.system, need_imap=True)
     limit = _resolve_limit(args.limit, LIST_DEFAULT_LIMIT)
 
     server = get_imap(config)
     try:
-        select_folder(server, args.folder)
-        uids = _collect_uids(server)
-        if args.unread_only:
-            uids = _filter_unread(server, uids)
-        uids = uids[:limit]
-        messages = _fetch_headers(server, uids)
+        if args.all_folders:
+            messages = _multifolder_list(server, unread_only=args.unread_only, limit=limit)
+            folder_display = "(所有文件夹)"
+        else:
+            select_folder(server, args.folder)
+            uids = _collect_uids(server)
+            if args.unread_only:
+                uids = _filter_unread(server, uids)
+            uids = uids[:limit]
+            messages = _fetch_headers(server, uids)
+            folder_display = args.folder
     finally:
         _safe_logout(server)
 
     data = {
         "system": config.system_name,
-        "folder": args.folder,
+        "folder": folder_display,
         "total": len(messages),
         "messages": messages,
     }
@@ -916,23 +1005,28 @@ def cmd_search(args) -> int:
 
     server = get_imap(config)
     try:
-        select_folder(server, args.folder)
-        status, data = server.uid("SEARCH", None, *criteria)
-        if status != "OK":
-            raise ServiceError("UID SEARCH 失败")
-        raw = data[0] if data and data[0] else b""
-        if isinstance(raw, str):
-            raw = raw.encode()
-        uids = [u for u in raw.split() if u]
-        uids.reverse()
-        uids = uids[:limit]
-        messages = _fetch_headers(server, uids)
+        if args.all_folders:
+            messages = _multifolder_search(server, criteria, limit)
+            folder_display = "(所有文件夹)"
+        else:
+            select_folder(server, args.folder)
+            status, data = server.uid("SEARCH", None, *criteria)
+            if status != "OK":
+                raise ServiceError("UID SEARCH 失败")
+            raw = data[0] if data and data[0] else b""
+            if isinstance(raw, str):
+                raw = raw.encode()
+            uids = [u for u in raw.split() if u]
+            uids.reverse()
+            uids = uids[:limit]
+            messages = _fetch_headers(server, uids)
+            folder_display = args.folder
     finally:
         _safe_logout(server)
 
     data_out = {
         "system": config.system_name,
-        "folder": args.folder,
+        "folder": folder_display,
         "total": len(messages),
         "messages": messages,
     }
@@ -961,29 +1055,11 @@ def cmd_folders(args) -> int:
 
     server = get_imap(config)
     try:
-        status, data = server.list()
+        names = _list_folder_names(server)
     finally:
         _safe_logout(server)
 
-    if status != "OK":
-        raise ServiceError("LIST 文件夹失败")
-
-    folders: list[dict] = []
-    for item in data:
-        if not item:
-            continue
-        line = item.decode("utf-8", errors="replace") if isinstance(item, (bytes, bytearray)) else str(item)
-        # 格式: (\HasNoChildren) "/" "INBOX"
-        m = re.match(r'\(([^)]*)\)\s+"([^"]*)"\s+"?([^"]+)"?$', line)
-        if m:
-            flags = [f.strip() for f in m.group(1).split() if f.strip()]
-            delimiter = m.group(2)
-            name = m.group(3)
-        else:
-            flags = []
-            delimiter = "/"
-            name = line
-        folders.append({"name": name, "delimiter": delimiter, "flags": flags})
+    folders = [{"name": n, "delimiter": "/", "flags": []} for n in names]
 
     data_out = {"system": config.system_name, "folders": folders}
     _print_format(args.format, data_out, render_table_folders)
@@ -1176,6 +1252,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_folder_arg(p)
     p.add_argument("--limit", type=int, default=None, help=f"数量上限，默认 {LIST_DEFAULT_LIMIT}，最大 {MAX_LIMIT}")
     p.add_argument("--unread-only", action="store_true", help="只列未读")
+    p.add_argument("--all-folders", action="store_true", help="遍历所有文件夹（单连接），忽略 --folder")
     p.set_defaults(func=cmd_list)
 
     # read
@@ -1195,6 +1272,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--subject", default=None, help="主题关键词")
     p.add_argument("--since", default=None, help="日期，格式 YYYY-MM-DD")
     p.add_argument("--limit", type=int, default=None, help=f"数量上限，默认 {SEARCH_DEFAULT_LIMIT}，最大 {MAX_LIMIT}")
+    p.add_argument("--all-folders", action="store_true", help="遍历所有文件夹（单连接），忽略 --folder")
     p.set_defaults(func=cmd_search)
 
     # folders

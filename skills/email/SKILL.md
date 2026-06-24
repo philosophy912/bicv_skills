@@ -118,9 +118,9 @@ python3 scripts/email_api.py send --to a@x.com --subject Hi --body Hello --syste
 | 类别 | 子命令 | 说明 |
 |------|--------|------|
 | 发信 | `send` | 纯文本/HTML、附件、抄送/密送 |
-| 收信-列表 | `list` | 最新邮件摘要，默认 100 封 |
+| 收信-列表 | `list` | 最新邮件摘要，默认 100 封；支持 `--all-folders` 单连接遍历所有文件夹 |
 | 收信-读取 | `read` | 单封邮件完整内容 |
-| 收信-搜索 | `search` | 按发件人/主题/日期 |
+| 收信-搜索 | `search` | 按发件人/主题/日期；支持 `--all-folders` 单连接遍历所有文件夹 |
 | 收信-文件夹 | `folders` | 列出所有文件夹 |
 | 收信-标记 | `mark-read` | 标记已读/未读 |
 | 收信-附件 | `save-attachments` | 下载邮件附件 |
@@ -167,6 +167,9 @@ python3 scripts/email_api.py list --unread-only
 # 指定数量和文件夹
 python3 scripts/email_api.py list --limit 20 --folder Sent
 
+# 遍历所有文件夹（单连接，避免频繁登录限制）
+python3 scripts/email_api.py list --all-folders
+
 # 表格格式（给人看）
 python3 scripts/email_api.py list --format table
 ```
@@ -184,6 +187,9 @@ python3 scripts/email_api.py read --uid 123 --folder Sent --format table
 python3 scripts/email_api.py search --from gerrit
 python3 scripts/email_api.py search --subject review --limit 20
 python3 scripts/email_api.py search --since 2026-06-01 --from boss
+
+# 遍历所有文件夹搜索（单连接，避免频繁登录限制）
+python3 scripts/email_api.py search --since 2026-06-24 --all-folders
 ```
 
 ### 文件夹列表
