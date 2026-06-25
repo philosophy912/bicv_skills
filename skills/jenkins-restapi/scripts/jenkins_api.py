@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import time
 from typing import Any
 from urllib import error, parse, request
 
@@ -84,7 +85,9 @@ def request_text(
     req = request.Request(url, data=body, headers=req_headers, method=method.upper())
     try:
         with request.urlopen(req) as response:
-            return response.read().decode("utf-8")
+            # consoleText 等响应可能含非 UTF-8 字节（嵌入式编译输出的 GBK/二进制字节），
+            # 用 replace 容错解码避免 UnicodeDecodeError；JSON 请求里替换字符不影响解析。
+            return response.read().decode("utf-8", errors="replace")
     except error.HTTPError as exc:
         response_text = exc.read().decode("utf-8", errors="replace")
         raise JenkinsError(
@@ -192,6 +195,60 @@ def cmd_get_console_log(args: argparse.Namespace) -> int:
     return 0
 
 
+def matches_result_filter(result: Any, spec: str) -> bool:
+    """Return True if a build's ``result`` matches a ``--result`` filter spec.
+
+    ``spec`` is either a literal result value (e.g. ``FAILURE``) or a negation
+    prefixed with ``!`` (e.g. ``!SUCCESS``). A negation keeps builds whose
+    result is set and not equal to the negated value — so ``!SUCCESS`` yields
+    FAILURE/UNSTABLE/ABORTED but excludes still-running builds (result is
+    ``None``).
+    """
+    if spec.startswith("!"):
+        wanted = spec[1:]
+        return result is not None and result != wanted
+    return result == spec
+
+
+def cmd_list_builds(args: argparse.Namespace) -> int:
+    target = _target(args)
+    path = f"/{encode_job_segment(args.job)}/api/json"
+    tree_fields = "builds[number,timestamp,result,duration,url]"
+    limit = args.limit
+    tree_spec = f"{tree_fields}{{0,{limit}}}" if limit and limit > 0 else tree_fields
+    data = request_json("GET", target, path, params={"tree": tree_spec})
+    builds = data.get("builds", []) if isinstance(data, dict) else []
+
+    cutoff_ms: int | None = None
+    if args.since_hours is not None:
+        cutoff_ms = int(time.time() * 1000) - int(args.since_hours * 3600 * 1000)
+
+    result_spec = args.result
+    filtered: list[dict[str, Any]] = []
+    for build in builds:
+        if not isinstance(build, dict):
+            continue
+        timestamp = build.get("timestamp")
+        if cutoff_ms is not None and (
+            not isinstance(timestamp, (int, float)) or timestamp < cutoff_ms
+        ):
+            continue
+        if result_spec and not matches_result_filter(build.get("result"), result_spec):
+            continue
+        filtered.append(
+            {
+                "number": build.get("number"),
+                "timestamp": timestamp,
+                "result": build.get("result"),
+                "duration": build.get("duration"),
+                "url": build.get("url"),
+            }
+        )
+
+    print(json.dumps(filtered, ensure_ascii=False, indent=2))
+    return 0
+
+
 def parse_params(param_values: list[str]) -> dict[str, str]:
     params: dict[str, str] = {}
     for item in param_values:
@@ -288,6 +345,32 @@ def build_parser() -> argparse.ArgumentParser:
     add_job_arg(get_console_log)
     add_build_number_arg(get_console_log)
     get_console_log.set_defaults(handler=cmd_get_console_log)
+
+    list_builds = subparsers.add_parser(
+        "list-builds",
+        help="List builds of a job within a time window, optionally filtered by result",
+    )
+    add_common_args(list_builds)
+    add_job_arg(list_builds)
+    list_builds.add_argument(
+        "--since-hours",
+        type=float,
+        default=24,
+        help="Only return builds newer than now - N hours (default: 24)",
+    )
+    list_builds.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="Max builds to fetch via Jenkins tree range (default: 50; 0 = no limit)",
+    )
+    list_builds.add_argument(
+        "--result",
+        default=None,
+        help="Filter by result, e.g. FAILURE; or !SUCCESS to keep all non-SUCCESS "
+        "results (FAILURE/UNSTABLE/ABORTED, excludes running builds)",
+    )
+    list_builds.set_defaults(handler=cmd_list_builds)
 
     build_job = subparsers.add_parser("build-job", help="Trigger a Jenkins build")
     add_common_args(build_job)

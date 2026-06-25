@@ -155,6 +155,15 @@ class TestRequestText:
             result = jenkins_api.request_text("GET", MOCK_TARGET, "/api/json")
         assert result == "hello world"
 
+    def test_non_utf8_bytes_replaced_not_raised(self):
+        # consoleText may contain non-UTF-8 bytes (GBK/binary from embedded builds);
+        # decoding must not crash, invalid bytes become U+FFFD.
+        with mock.patch("urllib.request.urlopen") as m:
+            m.return_value = _urlopen_cm(b"err \xd5\xc0\xce ok")
+            result = jenkins_api.request_text("GET", MOCK_TARGET, "/consoleText")
+        assert "err " in result and " ok" in result
+        assert "�" in result
+
     def test_basic_auth_header(self):
         with mock.patch("urllib.request.urlopen") as m:
             m.return_value = _urlopen_cm(b"{}")
@@ -459,6 +468,210 @@ class TestCmdGetConsoleLog:
         assert rt.call_args.kwargs == {}
 
 
+# ===================================================================
+# matches_result_filter
+# ===================================================================
+
+
+class TestMatchesResultFilter:
+    def test_literal_match(self):
+        assert jenkins_api.matches_result_filter("FAILURE", "FAILURE") is True
+
+    def test_literal_no_match(self):
+        assert jenkins_api.matches_result_filter("SUCCESS", "FAILURE") is False
+
+    def test_negation_keeps_other_results(self):
+        assert jenkins_api.matches_result_filter("FAILURE", "!SUCCESS") is True
+        assert jenkins_api.matches_result_filter("UNSTABLE", "!SUCCESS") is True
+        assert jenkins_api.matches_result_filter("ABORTED", "!SUCCESS") is True
+
+    def test_negation_excludes_negated_value(self):
+        assert jenkins_api.matches_result_filter("SUCCESS", "!SUCCESS") is False
+
+    def test_negation_excludes_none_running_build(self):
+        # running builds have result=None; !SUCCESS must not pick them up
+        assert jenkins_api.matches_result_filter(None, "!SUCCESS") is False
+
+    def test_literal_against_none(self):
+        assert jenkins_api.matches_result_filter(None, "FAILURE") is False
+
+
+# ===================================================================
+# cmd_list_builds
+# ===================================================================
+
+
+class TestCmdListBuilds:
+    def _args(self, **overrides):
+        defaults = {
+            "job": "job-a",
+            "since_hours": 24,
+            "limit": 50,
+            "result": None,
+            "jenkins": None,
+            "user": None,
+            "system": None,
+        }
+        defaults.update(overrides)
+        return mock.MagicMock(**defaults)
+
+    def test_emits_pure_json_array(self, capsys):
+        builds = [
+            {
+                "number": 3,
+                "timestamp": 9_999_999_999_999,
+                "result": "FAILURE",
+                "duration": 1000,
+                "url": "http://j/job-a/3",
+            },
+            {
+                "number": 2,
+                "timestamp": 9_999_999_999_998,
+                "result": "SUCCESS",
+                "duration": 500,
+                "url": "http://j/job-a/2",
+            },
+        ]
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = {"builds": builds}
+            rc = jenkins_api.cmd_list_builds(self._args())
+        out = capsys.readouterr().out
+        assert rc == 0
+        parsed = json.loads(out)
+        assert isinstance(parsed, list)
+        assert len(parsed) == 2
+        assert parsed[0]["number"] == 3
+        assert parsed[0]["result"] == "FAILURE"
+
+    def test_tree_range_applied_when_limit_positive(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = {"builds": []}
+            jenkins_api.cmd_list_builds(self._args(limit=30))
+        _, kw = rj.call_args
+        assert "{0,30}" in kw["params"]["tree"]
+
+    def test_tree_no_range_when_limit_zero(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = {"builds": []}
+            jenkins_api.cmd_list_builds(self._args(limit=0))
+        _, kw = rj.call_args
+        assert "{0" not in kw["params"]["tree"]
+
+    def test_since_hours_filters_old_builds(self, capsys):
+        now_ms = 1_700_000_000 * 1000
+        with mock.patch("jenkins_api.time.time", return_value=1_700_000_000):
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(_mock_target_patch())
+                rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+                rj.return_value = {
+                    "builds": [
+                        {"number": 5, "timestamp": now_ms - 1000, "result": "FAILURE"},
+                        {"number": 4, "timestamp": now_ms - 100 * 3600 * 1000, "result": "FAILURE"},
+                    ]
+                }
+                rc = jenkins_api.cmd_list_builds(self._args(since_hours=24))
+        parsed = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert [b["number"] for b in parsed] == [5]
+
+    def test_since_hours_zero_keeps_nothing(self, capsys):
+        now_ms = 1_700_000_000 * 1000
+        with mock.patch("jenkins_api.time.time", return_value=1_700_000_000):
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(_mock_target_patch())
+                rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+                rj.return_value = {
+                    "builds": [{"number": 1, "timestamp": now_ms - 1, "result": "FAILURE"}]
+                }
+                rc = jenkins_api.cmd_list_builds(self._args(since_hours=0))
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out) == []
+
+    def test_build_without_timestamp_dropped_when_filtering(self, capsys):
+        with mock.patch("jenkins_api.time.time", return_value=1_700_000_000):
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(_mock_target_patch())
+                rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+                rj.return_value = {
+                    "builds": [
+                        {"number": 1, "result": "FAILURE"},
+                        {
+                            "number": 2,
+                            "timestamp": 1_700_000_000 * 1000 - 1000,
+                            "result": "FAILURE",
+                        },
+                    ]
+                }
+                rc = jenkins_api.cmd_list_builds(self._args(since_hours=24))
+        parsed = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert [b["number"] for b in parsed] == [2]
+
+    def test_result_negation_success(self, capsys):
+        with mock.patch("jenkins_api.time.time", return_value=1_700_000_000):
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(_mock_target_patch())
+                rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+                rj.return_value = {
+                    "builds": [
+                        {"number": 1, "timestamp": 1_700_000_000 * 1000, "result": "SUCCESS"},
+                        {"number": 2, "timestamp": 1_700_000_000 * 1000, "result": "FAILURE"},
+                        {"number": 3, "timestamp": 1_700_000_000 * 1000, "result": None},
+                    ]
+                }
+                rc = jenkins_api.cmd_list_builds(self._args(since_hours=24, result="!SUCCESS"))
+        parsed = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert [b["number"] for b in parsed] == [2]
+
+    def test_result_literal_filter(self, capsys):
+        with mock.patch("jenkins_api.time.time", return_value=1_700_000_000):
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(_mock_target_patch())
+                rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+                rj.return_value = {
+                    "builds": [
+                        {"number": 1, "timestamp": 1_700_000_000 * 1000, "result": "FAILURE"},
+                        {"number": 2, "timestamp": 1_700_000_000 * 1000, "result": "ABORTED"},
+                    ]
+                }
+                rc = jenkins_api.cmd_list_builds(self._args(since_hours=24, result="ABORTED"))
+        parsed = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert [b["number"] for b in parsed] == [2]
+
+    def test_non_dict_response(self, capsys):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = []
+            rc = jenkins_api.cmd_list_builds(self._args())
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out) == []
+
+    def test_non_dict_build_entry_skipped(self, capsys):
+        with mock.patch("jenkins_api.time.time", return_value=1_700_000_000):
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(_mock_target_patch())
+                rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+                rj.return_value = {
+                    "builds": [
+                        "not-a-dict",
+                        {"number": 9, "timestamp": 1_700_000_000 * 1000, "result": "FAILURE"},
+                    ]
+                }
+                rc = jenkins_api.cmd_list_builds(self._args(since_hours=24))
+        parsed = json.loads(capsys.readouterr().out)
+        assert rc == 0
+        assert [b["number"] for b in parsed] == [9]
+
+
 class TestCmdBuildJob:
     def test_build_without_params(self, capsys):
         with contextlib.ExitStack() as stack:
@@ -575,6 +788,7 @@ class TestCli:
             "get-job",
             "get-build-info",
             "get-console-log",
+            "list-builds",
             "build-job",
             "list-queue",
             "disable-job",
@@ -620,6 +834,35 @@ class TestCli:
     def test_build_job_param_default_empty(self):
         args = jenkins_api.build_parser().parse_args(["build-job", "--job", "x"])
         assert args.param == []
+
+    def test_list_builds_defaults(self):
+        args = jenkins_api.build_parser().parse_args(["list-builds", "--job", "x"])
+        assert args.since_hours == 24
+        assert args.limit == 50
+        assert args.result is None
+        assert args.handler is jenkins_api.cmd_list_builds
+
+    def test_list_builds_custom_values(self):
+        args = jenkins_api.build_parser().parse_args(
+            [
+                "list-builds",
+                "--job",
+                "x",
+                "--since-hours",
+                "12",
+                "--limit",
+                "10",
+                "--result",
+                "!SUCCESS",
+            ]
+        )
+        assert args.since_hours == 12
+        assert args.limit == 10
+        assert args.result == "!SUCCESS"
+
+    def test_list_builds_requires_job(self):
+        with pytest.raises(SystemExit):
+            jenkins_api.build_parser().parse_args(["list-builds"])
 
     def test_handler_dispatch(self):
         args = jenkins_api.build_parser().parse_args(["list-queue"])
