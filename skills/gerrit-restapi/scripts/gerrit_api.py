@@ -142,13 +142,21 @@ def _target(args: argparse.Namespace) -> GerritTarget:
 
 def cmd_query_changes(args: argparse.Namespace) -> int:
     target = _target(args)
+    params: dict[str, Any] = {"q": args.query, "n": args.limit}
+    if args.option:
+        params["o"] = list(args.option)
     changes = request_json(
         "GET",
         target.url,
         "/changes/",
         auth=target.auth,
-        params={"q": args.query, "n": args.limit},
+        params=params,
     )
+
+    if args.json:
+        # 纯 JSON 输出（不带 system / heading），便于 agent / 脚本直接解析
+        print(json.dumps(changes, ensure_ascii=False, indent=2))
+        return 0
 
     if not changes:
         print("没有找到匹配的变更")
@@ -575,6 +583,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_args(query_changes)
     query_changes.add_argument("--query", required=True, help="查询字符串")
     query_changes.add_argument("--limit", type=int, default=25, help="返回结果数量限制")
+    query_changes.add_argument(
+        "--json",
+        action="store_true",
+        help="以纯 JSON 输出完整变更列表（默认字段），便于 agent / 脚本解析",
+    )
+    add_change_options_arg(query_changes)
     query_changes.set_defaults(handler=cmd_query_changes)
 
     get_change_details = subparsers.add_parser("get-change-details", help="获取 Gerrit 变更详情")

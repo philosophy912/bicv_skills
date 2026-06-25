@@ -17,6 +17,7 @@
 | `zentao-restapi` | 通过 REST API 操作禅道 |
 | `mysql` | MySQL SELECT / INSERT / UPDATE（禁止 DELETE/DROP/...） |
 | `jenkins_daily_analysis` | 分析过去 24h Jenkins 全部 freestyle job 失败构建，判定是否 scm 问题，输出分类报告（依赖 `jenkins-restapi`，零脚本，agent 编排四阶段 pipeline） |
+| `gerrit_daily_analysis` | 分析配置用户列表在指定时间段内提交并入库（merged）的 change，按人统计数量/代码量/效率指标并产出明细（依赖 `gerrit-restapi`，零脚本，agent 编排四阶段 pipeline） |
 
 各 skill 自包含，配置解析模块 `system_config.py` 随 skill 一起安装，不依赖外部共享包。
 

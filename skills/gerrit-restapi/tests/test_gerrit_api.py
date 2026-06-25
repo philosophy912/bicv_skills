@@ -301,7 +301,7 @@ def patched_request_json(return_value=None, side_effect=None):
 class TestCmdQueryChanges:
     def test_empty_result(self, capsys):
         with _mock_target_patch(), patched_request_json(return_value=[]):
-            args = mock.MagicMock(query="status:open", limit=25)
+            args = mock.MagicMock(query="status:open", limit=25, json=False, option=[])
             rc = gerrit_api.cmd_query_changes(args)
             out = capsys.readouterr().out
             assert "没有找到匹配的变更" in out
@@ -313,7 +313,7 @@ class TestCmdQueryChanges:
             {"_number": 2, "subject": "second", "work_in_progress": True},
         ]
         with _mock_target_patch(), patched_request_json(return_value=changes) as rj:
-            args = mock.MagicMock(query="status:open", limit=25)
+            args = mock.MagicMock(query="status:open", limit=25, json=False, option=[])
             rc = gerrit_api.cmd_query_changes(args)
             out = capsys.readouterr().out
             assert "2 个变更" in out
@@ -323,6 +323,44 @@ class TestCmdQueryChanges:
             _, kwargs = rj.call_args
             assert kwargs["params"]["q"] == "status:open"
             assert kwargs["params"]["n"] == 25
+
+    def test_json_output(self, capsys):
+        changes = [{"_number": 1, "subject": "first"}]
+        with _mock_target_patch(), patched_request_json(return_value=changes):
+            args = mock.MagicMock(query="status:open", limit=25, json=True, option=[])
+            rc = gerrit_api.cmd_query_changes(args)
+            out = capsys.readouterr().out
+            assert rc == 0
+            assert json.loads(out) == changes  # 纯 JSON，可直接解析
+
+    def test_json_with_options(self, capsys):
+        changes = [{"_number": 1, "subject": "first"}]
+        with _mock_target_patch(), patched_request_json(return_value=changes) as rj:
+            args = mock.MagicMock(
+                query="status:open", limit=25, json=True, option=["CURRENT_REVISION", "MESSAGES"]
+            )
+            gerrit_api.cmd_query_changes(args)
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["o"] == ["CURRENT_REVISION", "MESSAGES"]
+
+    def test_options_without_json(self, capsys):
+        changes = [{"_number": 1, "subject": "first", "work_in_progress": False}]
+        with _mock_target_patch(), patched_request_json(return_value=changes) as rj:
+            args = mock.MagicMock(query="status:open", limit=25, json=False, option=["MESSAGES"])
+            rc = gerrit_api.cmd_query_changes(args)
+            out = capsys.readouterr().out
+            assert rc == 0
+            assert "1 个变更" in out  # 仍走文本输出
+            _, kwargs = rj.call_args
+            assert kwargs["params"]["o"] == ["MESSAGES"]
+
+    def test_no_options_omits_o(self, capsys):
+        changes = [{"_number": 1, "subject": "first", "work_in_progress": False}]
+        with _mock_target_patch(), patched_request_json(return_value=changes) as rj:
+            args = mock.MagicMock(query="status:open", limit=25, json=False, option=[])
+            gerrit_api.cmd_query_changes(args)
+            _, kwargs = rj.call_args
+            assert "o" not in kwargs["params"]
 
 
 # ===================================================================
@@ -1111,6 +1149,23 @@ class TestBuildParser:
         assert args.query == "status:open"
         assert args.limit == 10
         assert args.handler is gerrit_api.cmd_query_changes
+
+    def test_query_changes_parses_json_options(self):
+        args = gerrit_api.build_parser().parse_args(
+            [
+                "query-changes",
+                "--query",
+                "status:open",
+                "--json",
+                "--option",
+                "CURRENT_REVISION",
+                "--option",
+                "MESSAGES",
+            ]
+        )
+        assert args.json is True
+        assert args.option == ["CURRENT_REVISION", "MESSAGES"]
+        assert args.limit == 25
 
     def test_get_revision_parses(self):
         args = gerrit_api.build_parser().parse_args(
