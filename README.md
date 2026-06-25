@@ -4,7 +4,7 @@
 
 ## 这是什么
 
-一套固定的 skill 能力（gerrit / jenkins / zentao / mysql 等），通过 [`npx skills`](https://github.com/vercel-labs/skills) 安装。`npx skills` 把 skill 软链接（Windows 上是 directory junction）到指定 agent 的 skills 目录，改一次源码所有 agent 同步生效。
+一套固定的 skill 能力（gerrit / jenkins / zentao / mysql / jenkins_daily_analysis 等），通过 [`npx skills`](https://github.com/vercel-labs/skills) 安装。`npx skills` 把 skill 软链接（Windows 上是 directory junction）到指定 agent 的 skills 目录，改一次源码所有 agent 同步生效。
 
 设计参考 [obra/superpowers](https://github.com/obra/Superpowers)，增加「凭据统一管理」能力。
 
@@ -16,6 +16,7 @@
 | `jenkins-restapi` | 通过 REST API 操作 Jenkins |
 | `zentao-restapi` | 通过 REST API 操作禅道 |
 | `mysql` | MySQL SELECT / INSERT / UPDATE（禁止 DELETE/DROP/...） |
+| `jenkins_daily_analysis` | 分析过去 24h Jenkins 全部 freestyle job 失败构建，判定是否 scm 问题，输出分类报告（依赖 `jenkins-restapi`，零脚本，agent 编排四阶段 pipeline） |
 
 各 skill 自包含，配置解析模块 `system_config.py` 随 skill 一起安装，不依赖外部共享包。
 
