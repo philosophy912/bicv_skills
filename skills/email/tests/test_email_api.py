@@ -8,11 +8,10 @@ import email.utils
 from pathlib import Path
 from unittest import mock
 
+import email_api
 import pytest
 
-from system_config import ServiceError
-import email_api
-
+from _email_config import ServiceError
 
 # ---------------------------------------------------------------------------
 # 配置 fixtures
@@ -115,16 +114,14 @@ class TestBodyExtraction:
         assert email_api.html_to_text("a   \n  b") == "a b"
 
     def test_extract_body_plain(self):
-        msg = email.message_from_string(
-            "Content-Type: text/plain; charset=utf-8\n\nHello plain"
-        )
+        msg = email.message_from_string("Content-Type: text/plain; charset=utf-8\n\nHello plain")
         body, btype = email_api.extract_body(msg)
         assert body == "Hello plain"
         assert btype == "plain"
 
     def test_extract_body_html_fallback(self):
         msg = email.message_from_string(
-            'Content-Type: text/html; charset=utf-8\n\n<p>Hi <b>there</b></p>'
+            "Content-Type: text/html; charset=utf-8\n\n<p>Hi <b>there</b></p>"
         )
         body, btype = email_api.extract_body(msg)
         assert body == "Hi there"
@@ -153,16 +150,14 @@ class TestBodyExtraction:
         assert btype == "plain"
 
     def test_extract_body_none(self):
-        msg = email.message_from_string(
-            'Content-Type: application/octet-stream\n\nBINARY'
-        )
+        msg = email.message_from_string("Content-Type: application/octet-stream\n\nBINARY")
         body, btype = email_api.extract_body(msg)
         assert body == ""
         assert btype == "none"
 
     def test_extract_body_missing_charset_fallback_utf8(self):
         # 真实邮件用 bytes，无 charset 时 fallback UTF-8 解码
-        msg = email.message_from_bytes(b"Content-Type: text/plain\n\n" + "中文".encode("utf-8"))
+        msg = email.message_from_bytes(b"Content-Type: text/plain\n\n" + "中文".encode())
         body, btype = email_api.extract_body(msg)
         assert body == "中文"
         assert btype == "plain"
@@ -172,8 +167,8 @@ class TestBodyExtraction:
         msg = email.message_from_string(
             'Content-Type: multipart/mixed; boundary="out"\n\n'
             '--out\nContent-Type: multipart/alternative; boundary="in"\n\n'
-            '--in\nContent-Type: text/plain\n\nNESTED\n'
-            '--in--\n--out--\n'
+            "--in\nContent-Type: text/plain\n\nNESTED\n"
+            "--in--\n--out--\n"
         )
         body, btype = email_api.extract_body(msg)
         assert body == "NESTED"
@@ -194,7 +189,7 @@ class TestFormatSize:
         assert email_api.format_size(1024 * 1024 * 3) == "3.0 MB"
 
     def test_gb(self):
-        assert email_api.format_size(1024 ** 3 * 5) == "5.0 GB"
+        assert email_api.format_size(1024**3 * 5) == "5.0 GB"
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +219,7 @@ class TestHeaderUtils:
 
     def test_get_attachment_filename_named(self):
         part = email.message_from_string(
-            'Content-Type: application/pdf\n'
+            "Content-Type: application/pdf\n"
             'Content-Disposition: attachment; filename="report.pdf"\n\nx'
         )
         assert email_api.get_attachment_filename(part, 0) == "report.pdf"
@@ -384,9 +379,7 @@ class TestResolveConfig:
         config = {"systems": systems}
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "email.json").write_text(
-            __import__("json").dumps(config), encoding="utf-8"
-        )
+        (bicv / "email.json").write_text(__import__("json").dumps(config), encoding="utf-8")
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         with pytest.raises(ServiceError, match="default_system"):
             email_api.resolve_email_config()
@@ -414,8 +407,15 @@ class TestBuildMessage:
 
     def test_plain_text_simple(self):
         msg, recipients = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-            subject="Hi", body="Hello", html=False, attachments=[], reply_to=None,
+            from_address="me@x.com",
+            to=["a@x.com"],
+            cc=[],
+            bcc=[],
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attachments=[],
+            reply_to=None,
         )
         assert msg.get_content_type() == "text/plain"
         assert msg["To"] == "a@x.com"
@@ -426,9 +426,16 @@ class TestBuildMessage:
         assert recipients == ["a@x.com"]
 
     def test_html_creates_alternative_with_plain_fallback(self):
-        msg, recipients = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-            subject="Hi", body="<p>Hello</p>", html=True, attachments=[], reply_to=None,
+        msg, _recipients = email_api.build_message(
+            from_address="me@x.com",
+            to=["a@x.com"],
+            cc=[],
+            bcc=[],
+            subject="Hi",
+            body="<p>Hello</p>",
+            html=True,
+            attachments=[],
+            reply_to=None,
         )
         assert msg.get_content_type() == "multipart/alternative"
         # 应有 plain 和 html 两段
@@ -440,10 +447,16 @@ class TestBuildMessage:
     def test_attachment_creates_mixed(self, tmp_path):
         att = tmp_path / "r.pdf"
         att.write_bytes(b"PDFDATA")
-        msg, recipients = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-            subject="Hi", body="Hello", html=False,
-            attachments=[str(att)], reply_to=None,
+        msg, _recipients = email_api.build_message(
+            from_address="me@x.com",
+            to=["a@x.com"],
+            cc=[],
+            bcc=[],
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attachments=[str(att)],
+            reply_to=None,
         )
         assert msg.get_content_type() == "multipart/mixed"
         parts = list(msg.walk())
@@ -454,10 +467,16 @@ class TestBuildMessage:
     def test_html_with_attachment(self, tmp_path):
         att = tmp_path / "r.pdf"
         att.write_bytes(b"PDFDATA")
-        msg, recipients = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-            subject="Hi", body="<p>Hello</p>", html=True,
-            attachments=[str(att)], reply_to=None,
+        msg, _recipients = email_api.build_message(
+            from_address="me@x.com",
+            to=["a@x.com"],
+            cc=[],
+            bcc=[],
+            subject="Hi",
+            body="<p>Hello</p>",
+            html=True,
+            attachments=[str(att)],
+            reply_to=None,
         )
         assert msg.get_content_type() == "multipart/mixed"
         # 第一段应是 alternative
@@ -466,8 +485,15 @@ class TestBuildMessage:
 
     def test_bcc_not_in_header_but_in_recipients(self):
         msg, recipients = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com"], cc=["c@x.com"], bcc=["b@x.com"],
-            subject="Hi", body="Hello", html=False, attachments=[], reply_to=None,
+            from_address="me@x.com",
+            to=["a@x.com"],
+            cc=["c@x.com"],
+            bcc=["b@x.com"],
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attachments=[],
+            reply_to=None,
         )
         assert "Bcc" not in msg
         assert msg["Cc"] == "c@x.com"
@@ -475,25 +501,45 @@ class TestBuildMessage:
         assert set(recipients) == {"a@x.com", "c@x.com", "b@x.com"}
 
     def test_recipients_dedup(self):
-        msg, recipients = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com", "a@x.com"], cc=["a@x.com"], bcc=[],
-            subject="Hi", body="Hello", html=False, attachments=[], reply_to=None,
+        _msg, recipients = email_api.build_message(
+            from_address="me@x.com",
+            to=["a@x.com", "a@x.com"],
+            cc=["a@x.com"],
+            bcc=[],
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attachments=[],
+            reply_to=None,
         )
         assert recipients == ["a@x.com"]
 
     def test_reply_to_header(self):
         msg, _ = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-            subject="Hi", body="Hello", html=False, attachments=[], reply_to="r@x.com",
+            from_address="me@x.com",
+            to=["a@x.com"],
+            cc=[],
+            bcc=[],
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attachments=[],
+            reply_to="r@x.com",
         )
         assert msg["Reply-To"] == "r@x.com"
 
     def test_attachment_not_found(self):
         with pytest.raises(ServiceError, match="附件文件不存在"):
             email_api.build_message(
-                from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-                subject="Hi", body="Hello", html=False,
-                attachments=["/nonexistent/x.pdf"], reply_to=None,
+                from_address="me@x.com",
+                to=["a@x.com"],
+                cc=[],
+                bcc=[],
+                subject="Hi",
+                body="Hello",
+                html=False,
+                attachments=["/nonexistent/x.pdf"],
+                reply_to=None,
             )
 
     def test_attachment_unknown_type_fallback(self, tmp_path):
@@ -501,9 +547,15 @@ class TestBuildMessage:
         att = tmp_path / "datafile"
         att.write_bytes(b"DATA")
         msg, _ = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-            subject="Hi", body="Hello", html=False,
-            attachments=[str(att)], reply_to=None,
+            from_address="me@x.com",
+            to=["a@x.com"],
+            cc=[],
+            bcc=[],
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attachments=[str(att)],
+            reply_to=None,
         )
         parts = list(msg.walk())
         types = [p.get_content_type() for p in parts]
@@ -522,22 +574,42 @@ class TestBuildMessage:
         monkeypatch.setattr("builtins.open", fake_open)
         with pytest.raises(ServiceError, match="读取附件文件失败"):
             email_api.build_message(
-                from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-                subject="Hi", body="Hello", html=False,
-                attachments=[str(att)], reply_to=None,
+                from_address="me@x.com",
+                to=["a@x.com"],
+                cc=[],
+                bcc=[],
+                subject="Hi",
+                body="Hello",
+                html=False,
+                attachments=[str(att)],
+                reply_to=None,
             )
 
     def test_message_id_uses_from_domain(self):
         msg, _ = email_api.build_message(
-            from_address="me@example.com", to=["a@x.com"], cc=[], bcc=[],
-            subject="Hi", body="Hello", html=False, attachments=[], reply_to=None,
+            from_address="me@example.com",
+            to=["a@x.com"],
+            cc=[],
+            bcc=[],
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attachments=[],
+            reply_to=None,
         )
         assert "example.com" in msg["Message-ID"]
 
     def test_chinese_subject_encoded(self):
         msg, _ = email_api.build_message(
-            from_address="me@x.com", to=["a@x.com"], cc=[], bcc=[],
-            subject="中文主题", body="Hello", html=False, attachments=[], reply_to=None,
+            from_address="me@x.com",
+            to=["a@x.com"],
+            cc=[],
+            bcc=[],
+            subject="中文主题",
+            body="Hello",
+            html=False,
+            attachments=[],
+            reply_to=None,
         )
         # 解码后应是中文
         assert email_api.decode_header_value(msg["Subject"]) == "中文主题"
@@ -555,21 +627,51 @@ class TestRender:
         assert "\\u" not in out
 
     def test_render_table_messages(self):
-        data = {"system": "default", "folder": "INBOX", "total": 1,
-                "messages": [{"uid": 1, "date": "2026-06-24 14:30", "from": "a@x.com",
-                               "subject": "Hi", "unread": True, "has_attachments": False}]}
+        data = {
+            "system": "default",
+            "folder": "INBOX",
+            "total": 1,
+            "messages": [
+                {
+                    "uid": 1,
+                    "date": "2026-06-24 14:30",
+                    "from": "a@x.com",
+                    "subject": "Hi",
+                    "unread": True,
+                    "has_attachments": False,
+                }
+            ],
+        }
         out = email_api.render_table_messages(data)
         assert "UID" in out
         assert "Hi" in out
 
     def test_render_table_messages_with_folder_column(self):
-        data = {"system": "default", "folder": "(所有文件夹)", "total": 2,
-                "messages": [
-                    {"uid": 1, "date": "2026-06-24", "from": "a@x.com", "subject": "Hi",
-                     "unread": False, "has_attachments": False, "folder": "INBOX"},
-                    {"uid": 2, "date": "2026-06-23", "from": "b@x.com", "subject": "S2",
-                     "unread": True, "has_attachments": True, "folder": "Sent"},
-                ]}
+        data = {
+            "system": "default",
+            "folder": "(所有文件夹)",
+            "total": 2,
+            "messages": [
+                {
+                    "uid": 1,
+                    "date": "2026-06-24",
+                    "from": "a@x.com",
+                    "subject": "Hi",
+                    "unread": False,
+                    "has_attachments": False,
+                    "folder": "INBOX",
+                },
+                {
+                    "uid": 2,
+                    "date": "2026-06-23",
+                    "from": "b@x.com",
+                    "subject": "S2",
+                    "unread": True,
+                    "has_attachments": True,
+                    "folder": "Sent",
+                },
+            ],
+        }
         out = email_api.render_table_messages(data)
         assert "文件夹" in out  # 多了文件夹列
         assert "INBOX" in out
@@ -581,9 +683,21 @@ class TestRender:
         assert "INBOX" in out
 
     def test_render_table_read(self):
-        data = {"system": "default", "folder": "INBOX", "uid": 1, "unread": True,
-                "headers": {"subject": "Hi", "from": "a@x.com", "to": "b@x.com", "cc": "", "date": "2026-06-24"},
-                "body": "Hello", "attachments": [{"filename": "r.pdf", "size": 100}]}
+        data = {
+            "system": "default",
+            "folder": "INBOX",
+            "uid": 1,
+            "unread": True,
+            "headers": {
+                "subject": "Hi",
+                "from": "a@x.com",
+                "to": "b@x.com",
+                "cc": "",
+                "date": "2026-06-24",
+            },
+            "body": "Hello",
+            "attachments": [{"filename": "r.pdf", "size": 100}],
+        }
         out = email_api.render_table_read(data)
         assert "正文" in out
         assert "r.pdf" in out
@@ -621,9 +735,7 @@ class TestHelpers:
             email_api._resolve_limit(600, 100)
 
     def test_header_has_attachment_mixed(self):
-        msg = email.message_from_string(
-            'Content-Type: multipart/mixed; boundary="b"\n\n--b--\n'
-        )
+        msg = email.message_from_string('Content-Type: multipart/mixed; boundary="b"\n\n--b--\n')
         assert email_api._header_has_attachment(msg) is True
 
     def test_header_has_attachment_plain(self):
@@ -638,9 +750,17 @@ class TestHelpers:
 
 def _make_config(**overrides):
     defaults = dict(
-        smtp_host="smtp.x.com", smtp_port=465, smtp_username="me@x.com", smtp_password="p",
-        imap_host="imap.x.com", imap_port=993, imap_username="me@x.com", imap_password="p",
-        from_address="me@x.com", attachments_dir="/tmp/atts", system_name="default",
+        smtp_host="smtp.x.com",
+        smtp_port=465,
+        smtp_username="me@x.com",
+        smtp_password="p",
+        imap_host="imap.x.com",
+        imap_port=993,
+        imap_username="me@x.com",
+        imap_password="p",
+        from_address="me@x.com",
+        attachments_dir="/tmp/atts",
+        system_name="default",
     )
     defaults.update(overrides)
     return email_api.EmailConnectionConfig(**defaults)
@@ -719,8 +839,15 @@ class TestCmdSend:
         mock_smtp.return_value = server
 
         args = mock.Mock(
-            system=None, to=["a@x.com"], cc=["c@x.com"], bcc=[],
-            subject="Hi", body="Hello", html=False, attach=None, reply_to=None,
+            system=None,
+            to=["a@x.com"],
+            cc=["c@x.com"],
+            bcc=[],
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attach=None,
+            reply_to=None,
         )
         rc = email_api.cmd_send(args)
         assert rc == 0
@@ -738,8 +865,15 @@ class TestCmdSend:
         server.sendmail.side_effect = Exception("reject")
         mock_smtp.return_value = server
         args = mock.Mock(
-            system=None, to=["a@x.com"], cc=None, bcc=None,
-            subject=None, body="Hello", html=False, attach=None, reply_to=None,
+            system=None,
+            to=["a@x.com"],
+            cc=None,
+            bcc=None,
+            subject=None,
+            body="Hello",
+            html=False,
+            attach=None,
+            reply_to=None,
         )
         with pytest.raises(ServiceError, match="邮件发送失败"):
             email_api.cmd_send(args)
@@ -750,8 +884,15 @@ class TestCmdSend:
     def test_send_empty_to(self, mock_cfg):
         mock_cfg.return_value = _make_config()
         args = mock.Mock(
-            system=None, to=[], cc=None, bcc=None,
-            subject="Hi", body="Hello", html=False, attach=None, reply_to=None,
+            system=None,
+            to=[],
+            cc=None,
+            bcc=None,
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attach=None,
+            reply_to=None,
         )
         with pytest.raises(ServiceError, match="收件人"):
             email_api.cmd_send(args)
@@ -762,8 +903,15 @@ class TestCmdSend:
         mock_cfg.return_value = _make_config()
         mock_smtp.return_value = mock.MagicMock()
         args = mock.Mock(
-            system=None, to=["a@x.com"], cc=None, bcc=None,
-            subject=None, body="Hello", html=False, attach=None, reply_to=None,
+            system=None,
+            to=["a@x.com"],
+            cc=None,
+            bcc=None,
+            subject=None,
+            body="Hello",
+            html=False,
+            attach=None,
+            reply_to=None,
         )
         email_api.cmd_send(args)
         out = capsys.readouterr().out
@@ -777,8 +925,15 @@ class TestCmdSend:
         att = tmp_path / "d.txt"
         att.write_text("data")
         args = mock.Mock(
-            system=None, to=["a@x.com"], cc=None, bcc=None,
-            subject="Hi", body="Hello", html=False, attach=[str(att)], reply_to=None,
+            system=None,
+            to=["a@x.com"],
+            cc=None,
+            bcc=None,
+            subject="Hi",
+            body="Hello",
+            html=False,
+            attach=[str(att)],
+            reply_to=None,
         )
         rc = email_api.cmd_send(args)
         assert rc == 0
@@ -793,10 +948,7 @@ class TestCmdSend:
 
 def _imap_fetch_headers_response(uid, subject, from_addr, date, flags_str, size):
     """构造 UID FETCH (BODY.PEEK[HEADER] FLAGS RFC822.SIZE) 的返回。"""
-    header = (
-        f"From: {from_addr}\r\nSubject: {subject}\r\nDate: {date}\r\n"
-        f"\r\n"
-    ).encode()
+    header = (f"From: {from_addr}\r\nSubject: {subject}\r\nDate: {date}\r\n\r\n").encode()
     meta = f"1 (UID {uid} FLAGS ({flags_str}) RFC822.SIZE {size})".encode()
     return ("OK", [(meta, header)])
 
@@ -811,11 +963,37 @@ class TestCmdList:
         server.select.return_value = ("OK", [b"2"])
         server.uid.side_effect = [
             ("OK", [b"2 1"]),  # SEARCH ALL
-            _imap_fetch_headers_response(2, "S2", "b@x.com", "Mon, 24 Jun 2026 14:30:00 +0800", "\\Seen", 100)[1] if False else
-            ("OK", [(b"2 (UID 2 FLAGS (\\Seen) RFC822.SIZE 100)", b"From: b@x.com\r\nSubject: S2\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n")]),
-            ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 200)", b"From: a@x.com\r\nSubject: S1\r\nDate: Mon, 23 Jun 2026 10:00:00 +0800\r\n\r\n")]),
+            _imap_fetch_headers_response(
+                2, "S2", "b@x.com", "Mon, 24 Jun 2026 14:30:00 +0800", "\\Seen", 100
+            )[1]
+            if False
+            else (
+                "OK",
+                [
+                    (
+                        b"2 (UID 2 FLAGS (\\Seen) RFC822.SIZE 100)",
+                        b"From: b@x.com\r\nSubject: S2\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n",
+                    )
+                ],
+            ),
+            (
+                "OK",
+                [
+                    (
+                        b"1 (UID 1 FLAGS () RFC822.SIZE 200)",
+                        b"From: a@x.com\r\nSubject: S1\r\nDate: Mon, 23 Jun 2026 10:00:00 +0800\r\n\r\n",
+                    )
+                ],
+            ),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX", limit=None, unread_only=False, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            limit=None,
+            unread_only=False,
+            all_folders=False,
+        )
         rc = email_api.cmd_list(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -837,9 +1015,19 @@ class TestCmdList:
             # _filter_unread for uid 1 (no Seen -> keep)
             ("OK", [(b"1 (UID 1 FLAGS ())",)]),
             # _fetch_headers for uid 1
-            ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 200)", b"From: a@x.com\r\nSubject: S1\r\n\r\n")]),
+            (
+                "OK",
+                [(b"1 (UID 1 FLAGS () RFC822.SIZE 200)", b"From: a@x.com\r\nSubject: S1\r\n\r\n")],
+            ),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX", limit=None, unread_only=True, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            limit=None,
+            unread_only=True,
+            all_folders=False,
+        )
         rc = email_api.cmd_list(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -855,9 +1043,24 @@ class TestCmdList:
         server.select.return_value = ("OK", [b"1"])
         server.uid.side_effect = [
             ("OK", [b"1"]),
-            ("OK", [(b"1 (UID 1 FLAGS (\\Seen) RFC822.SIZE 100)", b"From: a@x.com\r\nSubject: Hi\r\n\r\n")]),
+            (
+                "OK",
+                [
+                    (
+                        b"1 (UID 1 FLAGS (\\Seen) RFC822.SIZE 100)",
+                        b"From: a@x.com\r\nSubject: Hi\r\n\r\n",
+                    )
+                ],
+            ),
         ]
-        args = mock.Mock(system=None, format="table", folder="INBOX", limit=None, unread_only=False, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="table",
+            folder="INBOX",
+            limit=None,
+            unread_only=False,
+            all_folders=False,
+        )
         rc = email_api.cmd_list(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -901,7 +1104,7 @@ class TestCmdRead:
         mock_imap.return_value = server
         server.select.return_value = ("OK", [b"1"])
         raw_mail = (
-            b'From: a@x.com\r\nSubject: Hi\r\n'
+            b"From: a@x.com\r\nSubject: Hi\r\n"
             b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n'
             b"--b\r\nContent-Type: text/plain\r\n\r\nBODY\r\n"
             b"--b\r\nContent-Type: application/pdf\r\n"
@@ -942,6 +1145,7 @@ class TestCmdRead:
         assert rc == 0
         out = capsys.readouterr().out
         assert "正文" in out
+
     @mock.patch("email_api.get_imap")
     @mock.patch("email_api.resolve_email_config")
     def test_search_success(self, mock_cfg, mock_imap, capsys):
@@ -951,10 +1155,26 @@ class TestCmdRead:
         server.select.return_value = ("OK", [b"1"])
         server.uid.side_effect = [
             ("OK", [b"1"]),  # SEARCH
-            ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", b"From: gerrit@x.com\r\nSubject: Review\r\n\r\n")]),
+            (
+                "OK",
+                [
+                    (
+                        b"1 (UID 1 FLAGS () RFC822.SIZE 100)",
+                        b"From: gerrit@x.com\r\nSubject: Review\r\n\r\n",
+                    )
+                ],
+            ),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter="gerrit", subject=None, since=None, limit=None, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            from_filter="gerrit",
+            subject=None,
+            since=None,
+            limit=None,
+            all_folders=False,
+        )
         rc = email_api.cmd_search(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -963,8 +1183,16 @@ class TestCmdRead:
     @mock.patch("email_api.resolve_email_config")
     def test_search_no_criteria(self, mock_cfg):
         mock_cfg.return_value = _make_config()
-        args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter=None, subject=None, since=None, limit=None, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            from_filter=None,
+            subject=None,
+            since=None,
+            limit=None,
+            all_folders=False,
+        )
         with pytest.raises(ServiceError, match="至少需要"):
             email_api.cmd_search(args)
 
@@ -976,8 +1204,16 @@ class TestCmdRead:
         mock_imap.return_value = server
         server.select.return_value = ("OK", [b"0"])
         server.uid.return_value = ("OK", [b""])
-        args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter=None, subject=None, since="2026-06-01", limit=None, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            from_filter=None,
+            subject=None,
+            since="2026-06-01",
+            limit=None,
+            all_folders=False,
+        )
         rc = email_api.cmd_search(args)
         assert rc == 0
         # 验证 SINCE 被转成 IMAP 格式
@@ -993,10 +1229,26 @@ class TestCmdRead:
         server.select.return_value = ("OK", [b"1"])
         server.uid.side_effect = [
             ("OK", [b"1"]),
-            ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", b"From: a@x.com\r\nSubject: Review\r\n\r\n")]),
+            (
+                "OK",
+                [
+                    (
+                        b"1 (UID 1 FLAGS () RFC822.SIZE 100)",
+                        b"From: a@x.com\r\nSubject: Review\r\n\r\n",
+                    )
+                ],
+            ),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter=None, subject="Review", since=None, limit=None, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            from_filter=None,
+            subject="Review",
+            since=None,
+            limit=None,
+            all_folders=False,
+        )
         rc = email_api.cmd_search(args)
         assert rc == 0
         # 验证 SUBJECT 条件被传给 SEARCH
@@ -1011,8 +1263,16 @@ class TestCmdRead:
         mock_imap.return_value = server
         server.select.return_value = ("OK", [b"0"])
         server.uid.return_value = ("NO", [])
-        args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter="x", subject=None, since=None, limit=None, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            from_filter="x",
+            subject=None,
+            since=None,
+            limit=None,
+            all_folders=False,
+        )
         with pytest.raises(ServiceError, match="UID SEARCH 失败"):
             email_api.cmd_search(args)
 
@@ -1026,11 +1286,25 @@ class TestCmdRead:
         server.select.return_value = ("OK", [b"0"])
         server.uid.side_effect = [
             ("OK", ["1 2"]),  # str 形式的 UID 列表
-            ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", b"From: a@x.com\r\nSubject: S\r\n\r\n")]),
-            ("OK", [(b"2 (UID 2 FLAGS () RFC822.SIZE 100)", b"From: b@x.com\r\nSubject: S2\r\n\r\n")]),
+            (
+                "OK",
+                [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", b"From: a@x.com\r\nSubject: S\r\n\r\n")],
+            ),
+            (
+                "OK",
+                [(b"2 (UID 2 FLAGS () RFC822.SIZE 100)", b"From: b@x.com\r\nSubject: S2\r\n\r\n")],
+            ),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter="x", subject=None, since=None, limit=None, all_folders=False)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            from_filter="x",
+            subject=None,
+            since=None,
+            limit=None,
+            all_folders=False,
+        )
         rc = email_api.cmd_search(args)
         assert rc == 0
 
@@ -1042,10 +1316,13 @@ class TestCmdFolders:
         mock_cfg.return_value = _make_config()
         server = mock.MagicMock()
         mock_imap.return_value = server
-        server.list.return_value = ("OK", [
-            b'(\\HasNoChildren) "/" "INBOX"',
-            b'(\\HasNoChildren) "/" "Sent"',
-        ])
+        server.list.return_value = (
+            "OK",
+            [
+                b'(\\HasNoChildren) "/" "INBOX"',
+                b'(\\HasNoChildren) "/" "Sent"',
+            ],
+        )
         args = mock.Mock(system=None, format="json")
         rc = email_api.cmd_folders(args)
         assert rc == 0
@@ -1072,10 +1349,13 @@ class TestCmdFolders:
 class TestListFolderNames:
     def test_returns_folder_names(self):
         server = mock.MagicMock()
-        server.list.return_value = ("OK", [
-            b'(\\HasNoChildren) "/" "INBOX"',
-            b'(\\HasNoChildren) "/" "Sent"',
-        ])
+        server.list.return_value = (
+            "OK",
+            [
+                b'(\\HasNoChildren) "/" "INBOX"',
+                b'(\\HasNoChildren) "/" "Sent"',
+            ],
+        )
         names = email_api._list_folder_names(server)
         assert names == ["INBOX", "Sent"]
 
@@ -1089,10 +1369,13 @@ class TestListFolderNames:
 class TestMultiFolderSearch:
     def test_searches_all_folders(self):
         server = mock.MagicMock()
-        server.list.return_value = ("OK", [
-            b'(\\HasNoChildren) "/" "INBOX"',
-            b'(\\HasNoChildren) "/" "Sent"',
-        ])
+        server.list.return_value = (
+            "OK",
+            [
+                b'(\\HasNoChildren) "/" "INBOX"',
+                b'(\\HasNoChildren) "/" "Sent"',
+            ],
+        )
         server.select.return_value = ("OK", [b"1"])
         hdr = b"From: a@x.com\r\nSubject: Review\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n"
         server.uid.side_effect = [
@@ -1116,10 +1399,13 @@ class TestMultiFolderSearch:
 class TestMultiFolderList:
     def test_lists_all_folders(self):
         server = mock.MagicMock()
-        server.list.return_value = ("OK", [
-            b'"INBOX"',
-            b'"Sent"',
-        ])
+        server.list.return_value = (
+            "OK",
+            [
+                b'"INBOX"',
+                b'"Sent"',
+            ],
+        )
         server.select.return_value = ("OK", [b"1"])
         hdr1 = b"From: a@x.com\r\nSubject: S1\r\nDate: Mon, 24 Jun 2026 14:30:00 +0800\r\n\r\n"
         hdr2 = b"From: b@x.com\r\nSubject: S2\r\nDate: Tue, 24 Jun 2025 10:00:00 +0800\r\n\r\n"
@@ -1156,8 +1442,14 @@ class TestCmdListAllFolders:
             ("OK", [b"1"]),
             ("OK", [(b"1 (UID 1 FLAGS (\\Seen) RFC822.SIZE 100)", hdr)]),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX",
-                         limit=None, unread_only=False, all_folders=True)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            limit=None,
+            unread_only=False,
+            all_folders=True,
+        )
         rc = email_api.cmd_list(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -1179,9 +1471,16 @@ class TestCmdSearchAllFolders:
             ("OK", [b"1"]),
             ("OK", [(b"1 (UID 1 FLAGS () RFC822.SIZE 100)", hdr)]),
         ]
-        args = mock.Mock(system=None, format="json", folder="INBOX",
-                         from_filter="gerrit", subject=None, since=None,
-                         limit=None, all_folders=True)
+        args = mock.Mock(
+            system=None,
+            format="json",
+            folder="INBOX",
+            from_filter="gerrit",
+            subject=None,
+            since=None,
+            limit=None,
+            all_folders=True,
+        )
         rc = email_api.cmd_search(args)
         assert rc == 0
         out = capsys.readouterr().out
@@ -1244,7 +1543,7 @@ class TestCmdSaveAttachments:
         mock_imap.return_value = server
         server.select.return_value = ("OK", [b"1"])
         raw_mail = (
-            b'From: a@x.com\r\nSubject: Hi\r\n'
+            b"From: a@x.com\r\nSubject: Hi\r\n"
             b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n'
             b"--b\r\nContent-Type: text/plain\r\n\r\nBODY\r\n"
             b"--b\r\nContent-Type: application/pdf\r\n"
@@ -1267,7 +1566,7 @@ class TestCmdSaveAttachments:
         mock_imap.return_value = server
         server.select.return_value = ("OK", [b"1"])
         raw_mail = (
-            b'From: a@x.com\r\nSubject: Hi\r\n'
+            b"From: a@x.com\r\nSubject: Hi\r\n"
             b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n'
             b"--b\r\nContent-Type: application/pdf\r\n"
             b'Content-Disposition: attachment; filename="empty.pdf"\r\n\r\n'
@@ -1302,7 +1601,7 @@ class TestCmdSaveAttachments:
         mock_imap.return_value = server
         server.select.return_value = ("OK", [b"1"])
         raw_mail = (
-            b'From: a@x.com\r\nSubject: Hi\r\n'
+            b"From: a@x.com\r\nSubject: Hi\r\n"
             b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n'
             b"--b\r\nContent-Type: text/plain\r\n\r\nBODY\r\n"
             b"--b\r\nContent-Type: application/pdf\r\n"
@@ -1337,7 +1636,7 @@ class TestCmdSaveAttachments:
         mock_imap.return_value = server
         server.select.return_value = ("OK", [b"1"])
         raw_mail = (
-            b'From: a@x.com\r\nSubject: Hi\r\n'
+            b"From: a@x.com\r\nSubject: Hi\r\n"
             b'Content-Type: multipart/mixed; boundary="b"\r\n\r\n'
             b"--b\r\nContent-Type: application/pdf\r\n"
             b'Content-Disposition: attachment; filename="r.pdf"\r\n\r\n'

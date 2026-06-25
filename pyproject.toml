@@ -25,6 +25,53 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 # ---------------------------------------------------------------------------
+# ruff
+# 按 Python 3.10（仓库最低目标）配置，行宽 100 匹配现有代码风格。
+# 每增加一个 skill 需确认 scripts 和 tests 都在目标路径下。
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes (unused imports etc.)
+    "W",     # pycodestyle warnings
+    "I",     # isort (import ordering)
+    "B",     # flake8-bugbear
+    "C4",    # flake8-comprehensions
+    "UP",    # pyupgrade
+    "SIM",   # flake8-simplify
+    "RUF",   # ruff-specific checks
+]
+ignore = [
+    "E501",   # line too long — 由 ruff format 处理
+    "RUF001", # 中文 f-string 全角标点
+    "RUF002", # 中文 docstring 全角标点
+    "RUF003", # 中文注释全角标点
+    "UP009",  # UTF-8 coding comment — 不强制删除
+    "SIM105", # try-except-pass 改 contextlib.suppress — 脚本风格自由
+    "SIM103", # return bool(cond) — 显式 if/else 更可读
+    "SIM108", # 三元表达式 — 非强制
+    "SIM110", # any() / for-else — 非强制
+    "SIM117", # 合并嵌套 with — 非强制
+    "C408",   # dict() 改字面量 — 非强制
+    "RUF005", # list + [...] 合并 — 非强制
+    "RUF012", # 测试类 class-var 允许定义为可变默认值
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["system_config", "_email_config", "_mysql_config"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+
+# ---------------------------------------------------------------------------
 # coverage
 # 每个 skill 各持一份 system_config.py，统一纳入统计；
 # 按脚本文件粒度衡量各 skill 是否达标（见 docs/testing-guide.md）。

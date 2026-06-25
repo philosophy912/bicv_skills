@@ -44,7 +44,7 @@ docs/
 
 ## 改脚本时的红线
 
-1. **`system_config.py` 改了要同步 4 份**（gerrit/jenkins/zentao/mysql 各一份）。改一处后用 diff 确认其它三处一致，否则某些 skill 会用到旧逻辑。
+1. **`system_config.py` 同名模块从路径冲突问题**：email 和 mysql 的该文件已改名为 `_email_config.py` / `_mysql_config.py`，不要在它们下面再创建 `system_config.py`。gerrit/jenkins/zentao 的 `system_config.py` 内容相同（HTTP 服务专用），改一处需同步另外两处。
 2. **脚本里的 SQL/危险操作拦截不要放松**：mysql skill 严禁 DELETE/DROP 等；zentao 写操作的危险等级确认不能跳过。
 3. **不发起真实网络请求**——脚本本身没问题（用户运行时才连），但写测试或验证时必须 mock。
 
@@ -60,13 +60,16 @@ python3 -m pytest --cov=<module> --cov-report=term-missing -q
 
 # 脚本自检（不连真实服务，验证 import 和 --help）
 python3 skills/<skill-name>/scripts/<xxx>_api.py --help
+
+# Ruff 静态检查（提交前必过）
+ruff check skills/
+ruff format skills/ --check
 ```
 
 ## 安装方式（用户侧，非开发）
 
 ```bash
-npx skills add philosophy912/bicv_skills -y -g \
-  --agent claude-code codex hermes-agent openclaw
+npx skills add philosophy912/bicv_skills -y -g --agent claude-code codex hermes-agent openclaw
 ```
 
 本仓库只支持这四个 agent（`--agent` 显式限定），不装到其它 agent。详见 [README](README.md)。开发时不需要安装，直接在仓库内改 `skills/` 即可。

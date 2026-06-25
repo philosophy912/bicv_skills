@@ -12,10 +12,10 @@ from urllib import error, parse, request
 from system_config import (
     ServiceError,
     ServiceTarget,
-    resolve_target,
     print_error,
-    print_system,
     print_json_result,
+    print_system,
+    resolve_target,
 )
 
 JenkinsError = ServiceError
@@ -73,7 +73,7 @@ def request_text(
     req_headers.setdefault("Accept", "application/json")
 
     if target.auth is not None:
-        token = base64.b64encode(f"{target.auth[0]}:{target.auth[1]}".encode("utf-8")).decode("ascii")
+        token = base64.b64encode(f"{target.auth[0]}:{target.auth[1]}".encode()).decode("ascii")
         req_headers["Authorization"] = f"Basic {token}"
 
     if include_crumb:
@@ -87,7 +87,9 @@ def request_text(
             return response.read().decode("utf-8")
     except error.HTTPError as exc:
         response_text = exc.read().decode("utf-8", errors="replace")
-        raise JenkinsError("Request failed", status_code=exc.code, response_text=response_text) from exc
+        raise JenkinsError(
+            "Request failed", status_code=exc.code, response_text=response_text
+        ) from exc
     except error.URLError as exc:
         raise JenkinsError(f"Network error: {exc.reason}") from exc
 
@@ -127,12 +129,16 @@ def request_json(
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--jenkins", help="Explicit Jenkins base URL")
-    parser.add_argument("--system", help="Configured Jenkins system name; defaults to default_system")
+    parser.add_argument(
+        "--system", help="Configured Jenkins system name; defaults to default_system"
+    )
     parser.add_argument("--user", help="Auth in username:token or username:password format")
 
 
 def add_job_arg(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--job", required=True, help="Jenkins job name; folders use path-like names")
+    parser.add_argument(
+        "--job", required=True, help="Jenkins job name; folders use path-like names"
+    )
 
 
 def add_build_number_arg(parser: argparse.ArgumentParser) -> None:
@@ -199,7 +205,11 @@ def parse_params(param_values: list[str]) -> dict[str, str]:
 def cmd_build_job(args: argparse.Namespace) -> int:
     target = _target(args)
     params = parse_params(args.param)
-    path = f"/{encode_job_segment(args.job)}/buildWithParameters" if params else f"/{encode_job_segment(args.job)}/build"
+    path = (
+        f"/{encode_job_segment(args.job)}/buildWithParameters"
+        if params
+        else f"/{encode_job_segment(args.job)}/build"
+    )
     body = None
     headers = None
     if params:

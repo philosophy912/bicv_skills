@@ -8,10 +8,10 @@ import json
 from pathlib import Path
 from unittest import mock
 
+import gerrit_api
 import pytest
 
 from system_config import ServiceError
-import gerrit_api
 
 # A canned GerritTarget that doesn't need a real config file.
 MOCK_TARGET = gerrit_api.GerritTarget(
@@ -100,7 +100,9 @@ class TestBuildUrl:
         )
 
     def test_with_params(self):
-        url = gerrit_api.build_url("http://gerrit", "/changes/", params={"q": "status:open", "n": 5})
+        url = gerrit_api.build_url(
+            "http://gerrit", "/changes/", params={"q": "status:open", "n": 5}
+        )
         assert "q=status%3Aopen" in url
         assert "n=5" in url
 
@@ -134,7 +136,7 @@ class TestRequestJson:
     def test_get_strips_xssi_prefix(self):
         with mock.patch("urllib.request.urlopen") as m:
             cm = mock.MagicMock()
-            cm.read.return_value = b")]}'\n{\"a\": 2}"
+            cm.read.return_value = b')]}\'\n{"a": 2}'
             cm.__enter__.return_value = cm
             m.return_value = cm
             assert gerrit_api.request_json("GET", "http://gerrit", "/x") == {"a": 2}
@@ -193,9 +195,7 @@ class TestRequestJson:
             cm.__enter__.return_value = cm
             m.return_value = cm
 
-            gerrit_api.request_json(
-                "POST", "http://gerrit", "/changes/", force_auth_prefix=True
-            )
+            gerrit_api.request_json("POST", "http://gerrit", "/changes/", force_auth_prefix=True)
             req = m.call_args[0][0]
             assert req.full_url == "http://gerrit/a/changes/"
 
@@ -524,9 +524,10 @@ class TestCmdGetRevision:
 
 class TestCmdAddReviewer:
     def test_success_with_email(self, capsys):
-        with _mock_target_patch(), patched_request_json(
-            return_value={"reviewer": {"email": "r@x.com"}}
-        ) as rj:
+        with (
+            _mock_target_patch(),
+            patched_request_json(return_value={"reviewer": {"email": "r@x.com"}}) as rj,
+        ):
             args = mock.MagicMock(change_id="a~b~c", reviewer="r@x.com", state="REVIEWER")
             rc = gerrit_api.cmd_add_reviewer(args)
             out = capsys.readouterr().out
@@ -555,9 +556,18 @@ class TestCmdListProjects:
     def test_query_path_with_limit_and_start(self):
         with _mock_target_patch(), patched_request_json(return_value={}) as rj:
             args = mock.MagicMock(
-                query="name:foo", limit=5, start=2, branch=None, prefix=None,
-                regex=None, match=None, description=False, tree=False,
-                project_type=None, state=None, all_projects=False,
+                query="name:foo",
+                limit=5,
+                start=2,
+                branch=None,
+                prefix=None,
+                regex=None,
+                match=None,
+                description=False,
+                tree=False,
+                project_type=None,
+                state=None,
+                all_projects=False,
             )
             gerrit_api.cmd_list_projects(args)
             _, kwargs = rj.call_args
@@ -568,9 +578,18 @@ class TestCmdListProjects:
     def test_query_path_without_limit_start(self):
         with _mock_target_patch(), patched_request_json(return_value={}) as rj:
             args = mock.MagicMock(
-                query="name:foo", limit=None, start=None, branch=None, prefix=None,
-                regex=None, match=None, description=False, tree=False,
-                project_type=None, state=None, all_projects=False,
+                query="name:foo",
+                limit=None,
+                start=None,
+                branch=None,
+                prefix=None,
+                regex=None,
+                match=None,
+                description=False,
+                tree=False,
+                project_type=None,
+                state=None,
+                all_projects=False,
             )
             gerrit_api.cmd_list_projects(args)
             _, kwargs = rj.call_args
@@ -580,9 +599,18 @@ class TestCmdListProjects:
     def test_non_query_path_all_flags(self):
         with _mock_target_patch(), patched_request_json(return_value={}) as rj:
             args = mock.MagicMock(
-                query=None, limit=10, start=3, branch="main", prefix="p",
-                regex="^r", match="m", description=True, tree=True,
-                project_type="CODE", state="ACTIVE", all_projects=True,
+                query=None,
+                limit=10,
+                start=3,
+                branch="main",
+                prefix="p",
+                regex="^r",
+                match="m",
+                description=True,
+                tree=True,
+                project_type="CODE",
+                state="ACTIVE",
+                all_projects=True,
             )
             gerrit_api.cmd_list_projects(args)
             _, kwargs = rj.call_args
@@ -602,9 +630,18 @@ class TestCmdListProjects:
     def test_non_query_path_no_flags_no_params(self):
         with _mock_target_patch(), patched_request_json(return_value={}) as rj:
             args = mock.MagicMock(
-                query=None, limit=None, start=None, branch=None, prefix=None,
-                regex=None, match=None, description=False, tree=False,
-                project_type=None, state=None, all_projects=False,
+                query=None,
+                limit=None,
+                start=None,
+                branch=None,
+                prefix=None,
+                regex=None,
+                match=None,
+                description=False,
+                tree=False,
+                project_type=None,
+                state=None,
+                all_projects=False,
             )
             gerrit_api.cmd_list_projects(args)
             _, kwargs = rj.call_args
@@ -622,7 +659,7 @@ class TestCmdGetProject:
             args = mock.MagicMock(project_name="proj/name")
             gerrit_api.cmd_get_project(args)
             path = rj.call_args[0][2]
-            assert "/projects/proj%2Fname" == path
+            assert path == "/projects/proj%2Fname"
 
 
 class TestCmdListBranches:
@@ -663,8 +700,12 @@ class TestCmdQueryAccounts:
     def test_all_options(self):
         with _mock_target_patch(), patched_request_json(return_value=[]) as rj:
             args = mock.MagicMock(
-                query="name:alice", limit=5, start=1, suggest=True,
-                details=True, all_emails=True,
+                query="name:alice",
+                limit=5,
+                start=1,
+                suggest=True,
+                details=True,
+                all_emails=True,
             )
             gerrit_api.cmd_query_accounts(args)
             _, kwargs = rj.call_args
@@ -679,8 +720,12 @@ class TestCmdQueryAccounts:
     def test_minimal(self):
         with _mock_target_patch(), patched_request_json(return_value=[]) as rj:
             args = mock.MagicMock(
-                query="name:b", limit=None, start=None, suggest=False,
-                details=False, all_emails=False,
+                query="name:b",
+                limit=None,
+                start=None,
+                suggest=False,
+                details=False,
+                all_emails=False,
             )
             gerrit_api.cmd_query_accounts(args)
             _, kwargs = rj.call_args
@@ -714,9 +759,18 @@ class TestCmdListGroups:
     def test_query_path_with_limit_start(self):
         with _mock_target_patch(), patched_request_json(return_value={}) as rj:
             args = mock.MagicMock(
-                query="name:g", limit=3, start=1, owned_by=None, owned=False,
-                group=None, suggest=None, project=None, match=None, regex=None,
-                includes=False, members=False,
+                query="name:g",
+                limit=3,
+                start=1,
+                owned_by=None,
+                owned=False,
+                group=None,
+                suggest=None,
+                project=None,
+                match=None,
+                regex=None,
+                includes=False,
+                members=False,
             )
             gerrit_api.cmd_list_groups(args)
             _, kwargs = rj.call_args
@@ -728,9 +782,18 @@ class TestCmdListGroups:
     def test_non_query_path_all_flags(self):
         with _mock_target_patch(), patched_request_json(return_value={}) as rj:
             args = mock.MagicMock(
-                query=None, limit=5, start=2, owned_by="o", owned=True,
-                group="g", suggest="s", project="p", match="m", regex="^r",
-                includes=True, members=True,
+                query=None,
+                limit=5,
+                start=2,
+                owned_by="o",
+                owned=True,
+                group="g",
+                suggest="s",
+                project="p",
+                match="m",
+                regex="^r",
+                includes=True,
+                members=True,
             )
             gerrit_api.cmd_list_groups(args)
             _, kwargs = rj.call_args
@@ -750,9 +813,18 @@ class TestCmdListGroups:
     def test_non_query_path_no_flags_no_params(self):
         with _mock_target_patch(), patched_request_json(return_value={}) as rj:
             args = mock.MagicMock(
-                query=None, limit=None, start=None, owned_by=None, owned=False,
-                group=None, suggest=None, project=None, match=None, regex=None,
-                includes=False, members=False,
+                query=None,
+                limit=None,
+                start=None,
+                owned_by=None,
+                owned=False,
+                group=None,
+                suggest=None,
+                project=None,
+                match=None,
+                regex=None,
+                includes=False,
+                members=False,
             )
             gerrit_api.cmd_list_groups(args)
             _, kwargs = rj.call_args
@@ -812,8 +884,12 @@ class TestCmdGetTopic:
 class TestCmdListFiles:
     def _args(self, **over):
         defaults = dict(
-            change_id="a~b~c", revision_id="current", reviewed=False,
-            query=None, parent=None, base=None,
+            change_id="a~b~c",
+            revision_id="current",
+            reviewed=False,
+            query=None,
+            parent=None,
+            base=None,
         )
         defaults.update(over)
         # 'parent' is a reserved attribute on MagicMock; build then assign.
@@ -937,7 +1013,7 @@ class TestTarget:
             rt.return_value = MOCK_TARGET
             args = argparse.Namespace()
             gerrit_api._target(args)
-            a, kw = rt.call_args
+            a, _kw = rt.call_args
             assert a[0] is None
             assert a[1] is None
             assert a[2] is None
@@ -989,12 +1065,28 @@ class TestAddArgsHelpers:
 
 class TestBuildParser:
     SUBCOMMANDS = [
-        "query-changes", "get-change-details", "get-change", "list-reviewers",
-        "list-revisions", "get-revision", "list-projects", "get-project",
-        "list-branches", "get-branch", "query-accounts", "get-account",
-        "get-account-detail", "list-groups", "get-group", "list-group-members",
-        "list-change-messages", "get-topic", "list-files", "add-reviewer",
-        "post-review", "create-change",
+        "query-changes",
+        "get-change-details",
+        "get-change",
+        "list-reviewers",
+        "list-revisions",
+        "get-revision",
+        "list-projects",
+        "get-project",
+        "list-branches",
+        "get-branch",
+        "query-accounts",
+        "get-account",
+        "get-account-detail",
+        "list-groups",
+        "get-group",
+        "list-group-members",
+        "list-change-messages",
+        "get-topic",
+        "list-files",
+        "add-reviewer",
+        "post-review",
+        "create-change",
     ]
 
     def test_all_subcommands_registered(self):
@@ -1028,8 +1120,7 @@ class TestBuildParser:
 
     def test_list_files_parses(self):
         args = gerrit_api.build_parser().parse_args(
-            ["list-files", "--change-id", "a~b~c", "--revision-id", "current",
-             "--reviewed"]
+            ["list-files", "--change-id", "a~b~c", "--revision-id", "current", "--reviewed"]
         )
         assert args.reviewed is True
 
@@ -1051,12 +1142,8 @@ class TestBuildParser:
 
     def test_list_projects_project_type_choices(self):
         with pytest.raises(SystemExit):
-            gerrit_api.build_parser().parse_args(
-                ["list-projects", "--project-type", "BAD"]
-            )
-        args = gerrit_api.build_parser().parse_args(
-            ["list-projects", "--project-type", "CODE"]
-        )
+            gerrit_api.build_parser().parse_args(["list-projects", "--project-type", "BAD"])
+        args = gerrit_api.build_parser().parse_args(["list-projects", "--project-type", "CODE"])
         assert args.project_type == "CODE"
 
     def test_common_args_present(self):

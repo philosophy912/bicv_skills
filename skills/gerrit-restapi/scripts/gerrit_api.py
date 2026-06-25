@@ -4,15 +4,16 @@
 import argparse
 import base64
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 from urllib import error, parse, request
 
 from system_config import (
     ServiceError,
     ServiceTarget,
-    resolve_target,
-    print_system,
     print_json_result,
+    print_system,
+    resolve_target,
 )
 
 GerritError = ServiceError
@@ -76,7 +77,7 @@ def request_json(
         headers["Content-Type"] = "application/json; charset=utf-8"
 
     if auth is not None:
-        token = base64.b64encode(f"{auth[0]}:{auth[1]}".encode("utf-8")).decode("ascii")
+        token = base64.b64encode(f"{auth[0]}:{auth[1]}".encode()).decode("ascii")
         headers["Authorization"] = f"Basic {token}"
 
     req = request.Request(url, data=data, headers=headers, method=method.upper())
@@ -113,7 +114,9 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--user", help="认证信息，格式为 username:password")
 
 
-def add_range_args(parser: argparse.ArgumentParser, *, limit_name: str = "--limit", start_name: str = "--start") -> None:
+def add_range_args(
+    parser: argparse.ArgumentParser, *, limit_name: str = "--limit", start_name: str = "--start"
+) -> None:
     parser.add_argument(limit_name, type=int, help="返回结果数量限制")
     parser.add_argument(start_name, type=int, help="起始偏移")
 
@@ -184,7 +187,9 @@ def cmd_get_change_details(args: argparse.Namespace) -> int:
     if reviewers:
         print("\n审阅者:")
         for reviewer in reviewers:
-            name = reviewer.get("email") or reviewer.get("name") or reviewer.get("username") or "N/A"
+            name = (
+                reviewer.get("email") or reviewer.get("name") or reviewer.get("username") or "N/A"
+            )
             print(f"  - {name}")
 
     labels = details.get("labels", {})
@@ -500,7 +505,12 @@ def cmd_get_topic(args: argparse.Namespace) -> int:
 
 def cmd_list_files(args: argparse.Namespace) -> int:
     target = _target(args)
-    selected = [bool(args.reviewed), bool(args.query), args.parent is not None, args.base is not None]
+    selected = [
+        bool(args.reviewed),
+        bool(args.query),
+        args.parent is not None,
+        args.base is not None,
+    ]
     if sum(selected) > 1:
         raise GerritError("--reviewed、--query、--parent、--base 互斥，只能传一个")
 
@@ -569,30 +579,42 @@ def build_parser() -> argparse.ArgumentParser:
 
     get_change_details = subparsers.add_parser("get-change-details", help="获取 Gerrit 变更详情")
     add_common_args(get_change_details)
-    get_change_details.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
+    get_change_details.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
     get_change_details.set_defaults(handler=cmd_get_change_details)
 
     get_change = subparsers.add_parser("get-change", help="获取变更基础详情")
     add_common_args(get_change)
-    get_change.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
+    get_change.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
     add_change_options_arg(get_change)
     get_change.set_defaults(handler=cmd_get_change)
 
     list_reviewers = subparsers.add_parser("list-reviewers", help="列出变更审阅者")
     add_common_args(list_reviewers)
-    list_reviewers.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
+    list_reviewers.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
     list_reviewers.set_defaults(handler=cmd_list_reviewers)
 
     list_revisions = subparsers.add_parser("list-revisions", help="列出变更的所有 patch set")
     add_common_args(list_revisions)
-    list_revisions.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
+    list_revisions.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
     add_change_options_arg(list_revisions)
     list_revisions.set_defaults(handler=cmd_list_revisions)
 
     get_revision = subparsers.add_parser("get-revision", help="获取单个 patch set 详情")
     add_common_args(get_revision)
-    get_revision.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
-    get_revision.add_argument("--revision-id", required=True, help="revision SHA、patch set 编号对应 SHA，或 current")
+    get_revision.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
+    get_revision.add_argument(
+        "--revision-id", required=True, help="revision SHA、patch set 编号对应 SHA，或 current"
+    )
     add_change_options_arg(get_revision)
     get_revision.set_defaults(handler=cmd_get_revision)
 
@@ -605,7 +627,9 @@ def build_parser() -> argparse.ArgumentParser:
     list_projects.add_argument("--branch", help="仅返回包含该分支的项目")
     list_projects.add_argument("--description", action="store_true", help="返回项目描述")
     list_projects.add_argument("--tree", action="store_true", help="返回项目继承树信息")
-    list_projects.add_argument("--project-type", choices=["ALL", "CODE", "PERMISSIONS"], help="项目类型筛选")
+    list_projects.add_argument(
+        "--project-type", choices=["ALL", "CODE", "PERMISSIONS"], help="项目类型筛选"
+    )
     list_projects.add_argument("--state", help="按项目状态筛选")
     list_projects.add_argument("--all-projects", action="store_true", help="包含隐藏项目")
     add_range_args(list_projects)
@@ -647,7 +671,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     get_account_detail = subparsers.add_parser("get-account-detail", help="获取账号详细信息")
     add_common_args(get_account_detail)
-    get_account_detail.add_argument("--account-id", required=True, help="账号 ID、邮箱、用户名或 self")
+    get_account_detail.add_argument(
+        "--account-id", required=True, help="账号 ID、邮箱、用户名或 self"
+    )
     get_account_detail.set_defaults(handler=cmd_get_account_detail)
 
     list_groups = subparsers.add_parser("list-groups", help="列出 Gerrit 用户组")
@@ -673,24 +699,36 @@ def build_parser() -> argparse.ArgumentParser:
     list_group_members = subparsers.add_parser("list-group-members", help="列出用户组成员")
     add_common_args(list_group_members)
     list_group_members.add_argument("--group-id", required=True, help="组 ID、UUID 或组名")
-    list_group_members.add_argument("--recursive", action="store_true", help="递归解析包含的子组成员")
+    list_group_members.add_argument(
+        "--recursive", action="store_true", help="递归解析包含的子组成员"
+    )
     list_group_members.set_defaults(handler=cmd_list_group_members)
 
     list_change_messages = subparsers.add_parser("list-change-messages", help="列出变更消息")
     add_common_args(list_change_messages)
-    list_change_messages.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
+    list_change_messages.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
     list_change_messages.set_defaults(handler=cmd_list_change_messages)
 
     get_topic = subparsers.add_parser("get-topic", help="获取变更 Topic")
     add_common_args(get_topic)
-    get_topic.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
+    get_topic.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
     get_topic.set_defaults(handler=cmd_get_topic)
 
     list_files = subparsers.add_parser("list-files", help="列出 patch set 文件")
     add_common_args(list_files)
-    list_files.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
-    list_files.add_argument("--revision-id", required=True, help="revision SHA、patch set 编号对应 SHA，或 current")
-    list_files.add_argument("--reviewed", action="store_true", help="仅返回已标记 reviewed 的文件路径")
+    list_files.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
+    list_files.add_argument(
+        "--revision-id", required=True, help="revision SHA、patch set 编号对应 SHA，或 current"
+    )
+    list_files.add_argument(
+        "--reviewed", action="store_true", help="仅返回已标记 reviewed 的文件路径"
+    )
     list_files.add_argument("--query", help="按文件路径子串筛选")
     list_files.add_argument("--parent", type=int, help="按父提交编号查看文件差异")
     list_files.add_argument("--base", help="按指定 patch set 作为基线查看文件差异")
@@ -698,14 +736,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_reviewer = subparsers.add_parser("add-reviewer", help="为 Gerrit 变更添加审阅者")
     add_common_args(add_reviewer)
-    add_reviewer.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
+    add_reviewer.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
     add_reviewer.add_argument("--reviewer", required=True, help="审阅者邮箱或用户名")
-    add_reviewer.add_argument("--state", default="REVIEWER", choices=["REVIEWER", "CC"], help="添加类型")
+    add_reviewer.add_argument(
+        "--state", default="REVIEWER", choices=["REVIEWER", "CC"], help="添加类型"
+    )
     add_reviewer.set_defaults(handler=cmd_add_reviewer)
 
     post_review = subparsers.add_parser("post-review", help="为 Gerrit 变更发布审查评论")
     add_common_args(post_review)
-    post_review.add_argument("--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id")
+    post_review.add_argument(
+        "--change-id", required=True, help="变更 ID，格式为 project~branch~Change-Id"
+    )
     post_review.add_argument("--message", required=True, help="审查消息")
     post_review.add_argument("--revision", default="current", help="修订版本，默认 current")
     post_review.set_defaults(handler=cmd_post_review)

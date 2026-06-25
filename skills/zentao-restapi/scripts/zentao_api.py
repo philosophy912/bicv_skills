@@ -3,16 +3,19 @@
 
 import argparse
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 from urllib import error, parse, request
 
 from system_config import (
     ServiceError,
     ServiceTarget,
-    resolve_target,
-    print_error as _print_error,
-    print_system,
     print_json_result,
+    print_system,
+    resolve_target,
+)
+from system_config import (
+    print_error as _print_error,
 )
 
 ZentaoError = ServiceError
@@ -147,7 +150,10 @@ def get_token(target: ZentaoTarget, *, force: bool = False) -> str:
     payload = {"account": target.auth[0], "password": target.auth[1]}
     result = request_json("POST", target.url, "/tokens", payload=payload)
     if not isinstance(result, dict) or "token" not in result:
-        raise ZentaoError("获取 Token 失败: 响应中未找到 token 字段", response_text=json.dumps(result, ensure_ascii=False))
+        raise ZentaoError(
+            "获取 Token 失败: 响应中未找到 token 字段",
+            response_text=json.dumps(result, ensure_ascii=False),
+        )
     token = str(result["token"])
     target._zentao_token = token
     return token
@@ -169,7 +175,9 @@ def request_json_with_auth(
     except ZentaoError as exc:
         if exc.status_code == 401 and not force_token:
             token = get_token(target, force=True)
-            return request_json(method, zentao_url, path, token=token, params=params, payload=payload)
+            return request_json(
+                method, zentao_url, path, token=token, params=params, payload=payload
+            )
         raise
 
 
@@ -260,7 +268,9 @@ def cmd_list_bugs(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/bugs", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/bugs", target=target, params=params or None
+    )
     return print_json_result(target, result, "Bug 列表:")
 
 
@@ -296,7 +306,9 @@ def cmd_update_bug(args: argparse.Namespace) -> int:
             payload[key] = val
     if args.keywords is not None:
         payload["keywords"] = args.keywords
-    result = request_json_with_auth("PUT", target.url, f"/bugs/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/bugs/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "Bug 修改结果:")
 
 
@@ -306,21 +318,27 @@ def cmd_resolve_bug(args: argparse.Namespace) -> int:
     payload = {"resolution": args.resolution}
     if args.build is not None:
         payload["build"] = args.build
-    result = request_json_with_auth("PUT", target.url, f"/bugs/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/bugs/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "Bug 解决结果:")
 
 
 @with_confirm("close-bug", "关闭 Bug")
 def cmd_close_bug(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/bugs/{args.id}", target=target, payload={"status": "closed"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/bugs/{args.id}", target=target, payload={"status": "closed"}
+    )
     return print_json_result(target, result, "Bug 关闭结果:")
 
 
 @with_confirm("activate-bug", "激活 Bug")
 def cmd_activate_bug(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/bugs/{args.id}", target=target, payload={"status": "active"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/bugs/{args.id}", target=target, payload={"status": "active"}
+    )
     return print_json_result(target, result, "Bug 激活结果:")
 
 
@@ -349,7 +367,9 @@ def cmd_list_tasks(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/tasks", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/tasks", target=target, params=params or None
+    )
     return print_json_result(target, result, "任务列表:")
 
 
@@ -383,39 +403,59 @@ def cmd_create_task(args: argparse.Namespace) -> int:
 def cmd_update_task(args: argparse.Namespace) -> int:
     target = _target(args)
     payload: dict[str, Any] = {}
-    for key in ("name", "assigned_to", "estimate", "consumed", "left", "status", "pri", "type", "desc"):
+    for key in (
+        "name",
+        "assigned_to",
+        "estimate",
+        "consumed",
+        "left",
+        "status",
+        "pri",
+        "type",
+        "desc",
+    ):
         val = getattr(args, key, None)
         if val is not None:
             payload[key] = val
-    result = request_json_with_auth("PUT", target.url, f"/tasks/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/tasks/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "任务修改结果:")
 
 
 @with_confirm("start-task", "启动任务")
 def cmd_start_task(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/tasks/{args.id}", target=target, payload={"status": "doing"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/tasks/{args.id}", target=target, payload={"status": "doing"}
+    )
     return print_json_result(target, result, "任务启动结果:")
 
 
 @with_confirm("finish-task", "完成任务")
 def cmd_finish_task(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/tasks/{args.id}", target=target, payload={"status": "done"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/tasks/{args.id}", target=target, payload={"status": "done"}
+    )
     return print_json_result(target, result, "任务完成结果:")
 
 
 @with_confirm("close-task", "关闭任务")
 def cmd_close_task(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/tasks/{args.id}", target=target, payload={"status": "closed"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/tasks/{args.id}", target=target, payload={"status": "closed"}
+    )
     return print_json_result(target, result, "任务关闭结果:")
 
 
 @with_confirm("activate-task", "激活任务")
 def cmd_activate_task(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/tasks/{args.id}", target=target, payload={"status": "wait"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/tasks/{args.id}", target=target, payload={"status": "wait"}
+    )
     return print_json_result(target, result, "任务激活结果:")
 
 
@@ -438,7 +478,9 @@ def cmd_list_stories(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/stories", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/stories", target=target, params=params or None
+    )
     return print_json_result(target, result, "需求列表:")
 
 
@@ -470,28 +512,36 @@ def cmd_update_story(args: argparse.Namespace) -> int:
         val = getattr(args, key, None)
         if val is not None:
             payload[key] = val
-    result = request_json_with_auth("PUT", target.url, f"/stories/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/stories/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "需求修改结果:")
 
 
 @with_confirm("change-story", "变更需求")
 def cmd_change_story(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/stories/{args.id}", target=target, payload={"status": "changed"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/stories/{args.id}", target=target, payload={"status": "changed"}
+    )
     return print_json_result(target, result, "需求变更结果:")
 
 
 @with_confirm("close-story", "关闭需求")
 def cmd_close_story(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/stories/{args.id}", target=target, payload={"status": "closed"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/stories/{args.id}", target=target, payload={"status": "closed"}
+    )
     return print_json_result(target, result, "需求关闭结果:")
 
 
 @with_confirm("activate-story", "激活需求")
 def cmd_activate_story(args: argparse.Namespace) -> int:
     target = _target(args)
-    result = request_json_with_auth("PUT", target.url, f"/stories/{args.id}", target=target, payload={"status": "active"})
+    result = request_json_with_auth(
+        "PUT", target.url, f"/stories/{args.id}", target=target, payload={"status": "active"}
+    )
     return print_json_result(target, result, "需求激活结果:")
 
 
@@ -512,7 +562,9 @@ def cmd_list_products(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/products", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/products", target=target, params=params or None
+    )
     return print_json_result(target, result, "产品列表:")
 
 
@@ -534,7 +586,9 @@ def cmd_list_projects(args: argparse.Namespace) -> int:
         params["limit"] = args.limit
     if args.status is not None:
         params["status"] = args.status
-    result = request_json_with_auth("GET", target.url, "/projects", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/projects", target=target, params=params or None
+    )
     return print_json_result(target, result, "项目列表:")
 
 
@@ -570,7 +624,9 @@ def cmd_update_project(args: argparse.Namespace) -> int:
         val = getattr(args, key, None)
         if val is not None:
             payload[key] = val
-    result = request_json_with_auth("PUT", target.url, f"/projects/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/projects/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "项目修改结果:")
 
 
@@ -593,7 +649,9 @@ def cmd_list_executions(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/executions", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/executions", target=target, params=params or None
+    )
     return print_json_result(target, result, "执行列表:")
 
 
@@ -615,7 +673,9 @@ def cmd_create_execution(args: argparse.Namespace) -> int:
         payload["desc"] = args.desc
     if args.pm is not None:
         payload["PM"] = args.pm
-    result = request_json_with_auth("POST", target.url, "/executions", target=target, payload=payload)
+    result = request_json_with_auth(
+        "POST", target.url, "/executions", target=target, payload=payload
+    )
     return print_json_result(target, result, "执行创建结果:")
 
 
@@ -627,7 +687,9 @@ def cmd_update_execution(args: argparse.Namespace) -> int:
         val = getattr(args, key, None)
         if val is not None:
             payload[key] = val
-    result = request_json_with_auth("PUT", target.url, f"/executions/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/executions/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "执行修改结果:")
 
 
@@ -654,7 +716,9 @@ def cmd_list_testcases(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/testcases", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/testcases", target=target, params=params or None
+    )
     return print_json_result(target, result, "测试用例列表:")
 
 
@@ -678,7 +742,9 @@ def cmd_create_testcase(args: argparse.Namespace) -> int:
         payload["precondition"] = args.precondition
     if args.steps is not None:
         payload["steps"] = args.steps
-    result = request_json_with_auth("POST", target.url, "/testcases", target=target, payload=payload)
+    result = request_json_with_auth(
+        "POST", target.url, "/testcases", target=target, payload=payload
+    )
     return print_json_result(target, result, "测试用例创建结果:")
 
 
@@ -690,7 +756,9 @@ def cmd_update_testcase(args: argparse.Namespace) -> int:
         val = getattr(args, key, None)
         if val is not None:
             payload[key] = val
-    result = request_json_with_auth("PUT", target.url, f"/testcases/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/testcases/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "测试用例修改结果:")
 
 
@@ -717,7 +785,9 @@ def cmd_list_testtasks(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/testtasks", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/testtasks", target=target, params=params or None
+    )
     return print_json_result(target, result, "测试单列表:")
 
 
@@ -741,7 +811,9 @@ def cmd_create_testtask(args: argparse.Namespace) -> int:
         payload["end"] = args.end
     if args.desc is not None:
         payload["desc"] = args.desc
-    result = request_json_with_auth("POST", target.url, "/testtasks", target=target, payload=payload)
+    result = request_json_with_auth(
+        "POST", target.url, "/testtasks", target=target, payload=payload
+    )
     return print_json_result(target, result, "测试单创建结果:")
 
 
@@ -753,7 +825,9 @@ def cmd_update_testtask(args: argparse.Namespace) -> int:
         val = getattr(args, key, None)
         if val is not None:
             payload[key] = val
-    result = request_json_with_auth("PUT", target.url, f"/testtasks/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/testtasks/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "测试单修改结果:")
 
 
@@ -776,7 +850,9 @@ def cmd_list_users(args: argparse.Namespace) -> int:
         params["limit"] = args.limit
     if args.dept is not None:
         params["dept"] = args.dept
-    result = request_json_with_auth("GET", target.url, "/users", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/users", target=target, params=params or None
+    )
     return print_json_result(target, result, "用户列表:")
 
 
@@ -789,7 +865,11 @@ def cmd_get_user(args: argparse.Namespace) -> int:
 @with_confirm("create-user", "创建用户")
 def cmd_create_user(args: argparse.Namespace) -> int:
     target = _target(args)
-    payload: dict[str, Any] = {"account": args.account, "realname": args.realname, "password": args.password}
+    payload: dict[str, Any] = {
+        "account": args.account,
+        "realname": args.realname,
+        "password": args.password,
+    }
     if args.email is not None:
         payload["email"] = args.email
     if args.phone is not None:
@@ -812,7 +892,9 @@ def cmd_list_departments(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/departments", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/departments", target=target, params=params or None
+    )
     return print_json_result(target, result, "部门列表:")
 
 
@@ -828,7 +910,9 @@ def cmd_list_releases(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/releases", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/releases", target=target, params=params or None
+    )
     return print_json_result(target, result, "发布列表:")
 
 
@@ -860,7 +944,9 @@ def cmd_update_release(args: argparse.Namespace) -> int:
         val = getattr(args, key, None)
         if val is not None:
             payload[key] = val
-    result = request_json_with_auth("PUT", target.url, f"/releases/{args.id}", target=target, payload=payload)
+    result = request_json_with_auth(
+        "PUT", target.url, f"/releases/{args.id}", target=target, payload=payload
+    )
     return print_json_result(target, result, "发布修改结果:")
 
 
@@ -883,7 +969,9 @@ def cmd_list_builds(args: argparse.Namespace) -> int:
         params["page"] = args.page
     if args.limit is not None:
         params["limit"] = args.limit
-    result = request_json_with_auth("GET", target.url, "/builds", target=target, params=params or None)
+    result = request_json_with_auth(
+        "GET", target.url, "/builds", target=target, params=params or None
+    )
     return print_json_result(target, result, "版本列表:")
 
 
@@ -962,7 +1050,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = subparsers.add_parser("resolve-bug", help="解决 Bug")
     add_common_args(p)
     p.add_argument("--id", type=int, required=True, help="Bug ID")
-    p.add_argument("--resolution", required=True, help="解决方案 (fixed/postponed/bydesign/notrepro/duplicate/external)")
+    p.add_argument(
+        "--resolution",
+        required=True,
+        help="解决方案 (fixed/postponed/bydesign/notrepro/duplicate/external)",
+    )
     p.add_argument("--build", help="解决的版本")
     p.set_defaults(handler=cmd_resolve_bug)
 

@@ -21,11 +21,11 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 # --- config module (local copy, same path-traversal protection and system
 # matching as Gerrit / Jenkins) ----------------------------------------------
-from system_config import (
+from _mysql_config import (
     MySQLConnectionConfig,
     ServiceError,
     print_error,
@@ -63,7 +63,7 @@ BLOCKED_PATTERNS: tuple[str, ...] = (
 _STRING_RE: re.Pattern[str] = re.compile(
     r"'(?:''|\\'|[^'])*'"
     r'|"(?:""|\\"|[^"])*"'
-    r'|`(?:``|[^`])*`',
+    r"|`(?:``|[^`])*`",
 )
 
 
@@ -105,10 +105,10 @@ def read_sql_file(sql_source: str) -> str:
     file_path = sql_source[1:]
     try:
         return Path(file_path).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        raise ServiceError(f"SQL file not found: {file_path}")
+    except FileNotFoundError as exc:
+        raise ServiceError(f"SQL file not found: {file_path}") from exc
     except OSError as exc:
-        raise ServiceError(f"Error reading SQL file {file_path}: {exc}")
+        raise ServiceError(f"Error reading SQL file {file_path}: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -133,15 +133,13 @@ def get_connection(
         if not user:
             missing.append("username")
         raise ServiceError(
-            f"Missing required connection parameters in ~/.bicv/mysql.json: "
-            f"{', '.join(missing)}"
+            f"Missing required connection parameters in ~/.bicv/mysql.json: {', '.join(missing)}"
         )
 
     target_db = database or config.database
     if not target_db:
         raise ServiceError(
-            "No database specified; set 'database' in ~/.bicv/mysql.json "
-            "or use -d flag"
+            "No database specified; set 'database' in ~/.bicv/mysql.json or use -d flag"
         )
 
     try:
@@ -155,9 +153,7 @@ def get_connection(
         )
         return connection
     except MySQLError as exc:
-        raise ServiceError(
-            f"Error connecting to MySQL at {host}:{port}: {exc}"
-        )
+        raise ServiceError(f"Error connecting to MySQL at {host}:{port}: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -178,9 +174,7 @@ def format_results(columns: list[str], rows: list[tuple[Any, ...]]) -> None:
             widths[i] = max(widths[i], len(val))
         formatted_rows.append(formatted_row)
 
-    header = " | ".join(
-        str(col).ljust(widths[i]) for i, col in enumerate(columns)
-    )
+    header = " | ".join(str(col).ljust(widths[i]) for i, col in enumerate(columns))
     print(header)
     print("-" * len(header))
 
@@ -211,11 +205,7 @@ def execute_query(
         if operation == "select":
             cursor.execute(sql)
 
-            columns = (
-                [desc[0] for desc in cursor.description]
-                if cursor.description
-                else []
-            )
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
 
             BATCH_SIZE = 1000
             rows: list[tuple[Any, ...]] = []
@@ -230,10 +220,7 @@ def execute_query(
 
             if total > 10000:
                 format_results(columns, rows[:10000])
-                print(
-                    f"\n... showing first 10000 of {total} rows "
-                    f"(truncated for display)"
-                )
+                print(f"\n... showing first 10000 of {total} rows (truncated for display)")
             else:
                 format_results(columns, rows)
                 print(f"\n{total} row(s) returned")
@@ -241,13 +228,11 @@ def execute_query(
         else:
             cursor.execute(sql)
             connection.commit()
-            print(
-                f"Query executed successfully. {cursor.rowcount} row(s) affected."
-            )
+            print(f"Query executed successfully. {cursor.rowcount} row(s) affected.")
 
     except MySQLError as exc:
         connection.rollback()
-        raise ServiceError(f"Error executing query: {exc}")
+        raise ServiceError(f"Error executing query: {exc}") from exc
     finally:
         cursor.close()
 
@@ -285,10 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--system",
         dest="system",
         default=None,
-        help=(
-            "MySQL system name from ~/.bicv/mysql.json "
-            "(default: uses default_system)"
-        ),
+        help=("MySQL system name from ~/.bicv/mysql.json (default: uses default_system)"),
     )
     return parser
 
@@ -320,4 +302,4 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except ServiceError as err:
-        raise SystemExit(print_error(err))
+        raise SystemExit(print_error(err)) from err

@@ -5,12 +5,11 @@ from __future__ import annotations
 
 from unittest import mock
 
-import pytest
-
-from mysql.connector import Error as MySQLError
-from system_config import MySQLConnectionConfig, ServiceError
 import mysql_query
+import pytest
+from mysql.connector import Error as MySQLError
 
+from _mysql_config import MySQLConnectionConfig, ServiceError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -68,15 +67,18 @@ def _mock_connection(cursor):
 
 
 class TestValidateSqlAllowed:
-    @pytest.mark.parametrize("sql", [
-        "SELECT * FROM users",
-        "INSERT INTO users (id) VALUES (1)",
-        "UPDATE users SET name='x' WHERE id=1",
-        "WITH cte AS (SELECT 1) SELECT * FROM cte",
-        "  select * from t",      # lowercase + leading whitespace
-        "/* leading comment */ SELECT 1",
-        "-- comment\nSELECT 1",
-    ])
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM users",
+            "INSERT INTO users (id) VALUES (1)",
+            "UPDATE users SET name='x' WHERE id=1",
+            "WITH cte AS (SELECT 1) SELECT * FROM cte",
+            "  select * from t",  # lowercase + leading whitespace
+            "/* leading comment */ SELECT 1",
+            "-- comment\nSELECT 1",
+        ],
+    )
     def test_allowed_starts(self, sql):
         ok, kw = mysql_query.validate_sql(sql)
         assert ok is True
@@ -84,17 +86,20 @@ class TestValidateSqlAllowed:
 
 
 class TestValidateSqlBlocked:
-    @pytest.mark.parametrize("sql,keyword", [
-        ("DELETE FROM users WHERE id=1", "DELETE"),
-        ("DROP TABLE users", "DROP"),
-        ("TRUNCATE TABLE users", "TRUNCATE"),
-        ("ALTER TABLE users ADD col INT", "ALTER"),
-        ("CREATE TABLE users (id INT)", "CREATE"),
-        ("GRANT SELECT ON *.* TO 'x'@'%'", "GRANT"),
-        ("REVOKE ALL FROM 'x'@'%'", "REVOKE"),
-        ("SHOW TABLES", "SHOW"),
-        ("DESCRIBE users", "DESCRIBE"),
-    ])
+    @pytest.mark.parametrize(
+        "sql,keyword",
+        [
+            ("DELETE FROM users WHERE id=1", "DELETE"),
+            ("DROP TABLE users", "DROP"),
+            ("TRUNCATE TABLE users", "TRUNCATE"),
+            ("ALTER TABLE users ADD col INT", "ALTER"),
+            ("CREATE TABLE users (id INT)", "CREATE"),
+            ("GRANT SELECT ON *.* TO 'x'@'%'", "GRANT"),
+            ("REVOKE ALL FROM 'x'@'%'", "REVOKE"),
+            ("SHOW TABLES", "SHOW"),
+            ("DESCRIBE users", "DESCRIBE"),
+        ],
+    )
     def test_blocked_keywords(self, sql, keyword):
         ok, kw = mysql_query.validate_sql(sql)
         assert ok is False
@@ -348,9 +353,7 @@ class TestExecuteQueryWrite:
     def test_insert_path_commits_and_prints_rowcount(self, capsys):
         cursor = _mock_cursor(rowcount=3)
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(
-            conn, "INSERT INTO t (a) VALUES (1)", "insert"
-        )
+        mysql_query.execute_query(conn, "INSERT INTO t (a) VALUES (1)", "insert")
         out = capsys.readouterr().out
         assert "3 row(s) affected" in out
         conn.commit.assert_called_once()
@@ -359,9 +362,7 @@ class TestExecuteQueryWrite:
     def test_update_path_commits_and_prints_rowcount(self, capsys):
         cursor = _mock_cursor(rowcount=7)
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(
-            conn, "UPDATE t SET a=1 WHERE b=2", "update"
-        )
+        mysql_query.execute_query(conn, "UPDATE t SET a=1 WHERE b=2", "update")
         out = capsys.readouterr().out
         assert "7 row(s) affected" in out
         conn.commit.assert_called_once()
@@ -392,9 +393,7 @@ class TestExecuteQueryErrors:
         cursor.execute.side_effect = MySQLError("write boom")
         conn = _mock_connection(cursor)
         with pytest.raises(ServiceError):
-            mysql_query.execute_query(
-                conn, "INSERT INTO t (a) VALUES (1)", "insert"
-            )
+            mysql_query.execute_query(conn, "INSERT INTO t (a) VALUES (1)", "insert")
         conn.rollback.assert_called_once()
         conn.commit.assert_not_called()
         cursor.close.assert_called_once()
@@ -407,18 +406,14 @@ class TestExecuteQueryErrors:
 
 class TestBuildParser:
     def test_parses_select_operation(self):
-        args = mysql_query.build_parser().parse_args(
-            ["select", "SELECT 1", "--system", "prod"]
-        )
+        args = mysql_query.build_parser().parse_args(["select", "SELECT 1", "--system", "prod"])
         assert args.operation == "select"
         assert args.sql == "SELECT 1"
         assert args.system == "prod"
         assert args.database is None
 
     def test_parses_database_flag(self):
-        args = mysql_query.build_parser().parse_args(
-            ["select", "SELECT 1", "-d", "mydb"]
-        )
+        args = mysql_query.build_parser().parse_args(["select", "SELECT 1", "-d", "mydb"])
         assert args.database == "mydb"
 
     def test_invalid_operation_exits(self):
@@ -510,9 +505,9 @@ class TestMain:
                 "mysql_query.execute_query",
                 side_effect=ServiceError("boom"),
             ),
+            pytest.raises(ServiceError),
         ):
-            with pytest.raises(ServiceError):
-                mysql_query.main()
+            mysql_query.main()
 
         # finally block still checked connection state and closed it
         conn.is_connected.assert_called_once()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """电子邮件收发技能脚本。
 
 通过 SMTP_SSL 发送邮件、IMAP4_SSL 读取和管理邮件。纯标准库实现，零依赖。
@@ -31,10 +30,9 @@ from email.header import Header, decode_header
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from pathlib import Path
 from typing import Any
 
-from system_config import ServiceError, load_systems_config  # noqa: E402
+from _email_config import ServiceError, load_systems_config
 
 # ---------------------------------------------------------------------------
 # 常量
@@ -94,8 +92,7 @@ def _require_field(system_name: str, block: dict, key: str, block_name: str) -> 
     value = str(block.get(key, "")).strip()
     if not value:
         raise ServiceError(
-            f"system {system_name!r} 的 {block_name} 配置缺少 {key} 字段；"
-            f"请检查 {CONFIG_PATH_HINT}"
+            f"system {system_name!r} 的 {block_name} 配置缺少 {key} 字段；请检查 {CONFIG_PATH_HINT}"
         )
     return value
 
@@ -107,8 +104,7 @@ def _resolve_block(
     if not isinstance(block, dict):
         if require:
             raise ServiceError(
-                f"system {system_name!r} 缺少 {block_name} 配置块；"
-                f"请检查 {CONFIG_PATH_HINT}"
+                f"system {system_name!r} 缺少 {block_name} 配置块；请检查 {CONFIG_PATH_HINT}"
             )
         return None
     return block
@@ -132,9 +128,7 @@ def resolve_email_config(
 
     configured_system = system or str(config_data.get("default_system", "")).strip()
     if not configured_system:
-        raise ServiceError(
-            f"未指定 --system 且 {CONFIG_PATH_HINT} 中没有 default_system"
-        )
+        raise ServiceError(f"未指定 --system 且 {CONFIG_PATH_HINT} 中没有 default_system")
 
     if configured_system not in systems:
         names = ", ".join(systems.keys())
@@ -150,43 +144,32 @@ def resolve_email_config(
 
     # smtp 块（发信必需，始终校验）
     smtp_block = _resolve_block(configured_system, system_config, "smtp", require=True)
-    assert smtp_block is not None  # noqa: S101
+    assert smtp_block is not None
     smtp_host = _require_field(configured_system, smtp_block, "host", "smtp")
     smtp_username = _require_field(configured_system, smtp_block, "username", "smtp")
     smtp_password = _require_field(configured_system, smtp_block, "password", "smtp")
     try:
         smtp_port = int(smtp_block.get("port", DEFAULT_SMTP_PORT))
     except (TypeError, ValueError) as exc:
-        raise ServiceError(
-            f"system {configured_system!r} 的 smtp.port 不是合法整数"
-        ) from exc
+        raise ServiceError(f"system {configured_system!r} 的 smtp.port 不是合法整数") from exc
 
     # imap 块（收信必需）
     imap_host = imap_port = imap_username = imap_password = None
-    imap_block = _resolve_block(
-        configured_system, system_config, "imap", require=need_imap
-    )
+    imap_block = _resolve_block(configured_system, system_config, "imap", require=need_imap)
     if imap_block is not None:
         imap_host = _require_field(configured_system, imap_block, "host", "imap")
-        imap_username = _require_field(
-            configured_system, imap_block, "username", "imap"
-        )
-        imap_password = _require_field(
-            configured_system, imap_block, "password", "imap"
-        )
+        imap_username = _require_field(configured_system, imap_block, "username", "imap")
+        imap_password = _require_field(configured_system, imap_block, "password", "imap")
         try:
             imap_port = int(imap_block.get("port", DEFAULT_IMAP_PORT))
         except (TypeError, ValueError) as exc:
-            raise ServiceError(
-                f"system {configured_system!r} 的 imap.port 不是合法整数"
-            ) from exc
+            raise ServiceError(f"system {configured_system!r} 的 imap.port 不是合法整数") from exc
 
     # from_address
     from_address = str(system_config.get("from_address", "")).strip()
     if not from_address:
         raise ServiceError(
-            f"system {configured_system!r} 缺少 from_address 字段；"
-            f"请检查 {CONFIG_PATH_HINT}"
+            f"system {configured_system!r} 缺少 from_address 字段；请检查 {CONFIG_PATH_HINT}"
         )
     validate_address(from_address)
 
@@ -468,7 +451,7 @@ def read_body(body_arg: str) -> str:
         if not os.path.exists(path):
             raise ServiceError(f"正文文件不存在: {path}")
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return f.read()
         except OSError as exc:
             raise ServiceError(f"读取正文文件失败: {path}: {exc}") from exc
@@ -483,17 +466,15 @@ def read_body(body_arg: str) -> str:
 def get_smtp(config: EmailConnectionConfig):
     """建立 SMTP_SSL 连接并登录，返回 server 实例。失败抛 ServiceError。"""
     try:
-        server = smtplib.SMTP_SSL(
-            config.smtp_host, config.smtp_port, timeout=CONNECTION_TIMEOUT
-        )
-    except Exception as exc:  # noqa: BLE001
+        server = smtplib.SMTP_SSL(config.smtp_host, config.smtp_port, timeout=CONNECTION_TIMEOUT)
+    except Exception as exc:
         raise ServiceError(f"SMTP 连接失败 ({config.smtp_host}:{config.smtp_port}): {exc}") from exc
     try:
         server.login(config.smtp_username, config.smtp_password)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         try:
             server.quit()
-        except Exception:  # noqa: BLE001,S110
+        except Exception:
             pass
         raise ServiceError(f"SMTP 登录失败: {exc}") from exc
     return server
@@ -502,17 +483,15 @@ def get_smtp(config: EmailConnectionConfig):
 def get_imap(config: EmailConnectionConfig):
     """建立 IMAP4_SSL 连接并登录，返回 server 实例。失败抛 ServiceError。"""
     try:
-        server = imaplib.IMAP4_SSL(
-            config.imap_host, config.imap_port, timeout=CONNECTION_TIMEOUT
-        )
-    except Exception as exc:  # noqa: BLE001
+        server = imaplib.IMAP4_SSL(config.imap_host, config.imap_port, timeout=CONNECTION_TIMEOUT)
+    except Exception as exc:
         raise ServiceError(f"IMAP 连接失败 ({config.imap_host}:{config.imap_port}): {exc}") from exc
     try:
         server.login(config.imap_username, config.imap_password)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         try:
             server.logout()
-        except Exception:  # noqa: BLE001,S110
+        except Exception:
             pass
         raise ServiceError(f"IMAP 登录失败: {exc}") from exc
     return server
@@ -522,14 +501,12 @@ def select_folder(server, folder: str) -> int:
     """选择文件夹，返回邮件总数。失败抛 ServiceError 并提示用 folders 查。"""
     try:
         status, data = server.select(folder)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ServiceError(
             f"选择文件夹 {folder!r} 失败: {exc}；可用 folders 子命令查看所有文件夹"
         ) from exc
     if status != "OK":
-        raise ServiceError(
-            f"文件夹 {folder!r} 不存在或无法选择；可用 folders 子命令查看所有文件夹"
-        )
+        raise ServiceError(f"文件夹 {folder!r} 不存在或无法选择；可用 folders 子命令查看所有文件夹")
     try:
         return int(data[0])
     except (TypeError, ValueError, IndexError):
@@ -638,7 +615,11 @@ def _fetch_headers(server, uids: list[bytes]) -> list[dict]:
         if isinstance(raw, tuple) and len(raw) >= 2:
             header_bytes = raw[1] if isinstance(raw[1], (bytes, bytearray)) else b""
             # 解析随后的 FLAGS/SIZE（在 raw[0] 字符串里）
-            meta = raw[0].decode("utf-8", errors="replace") if isinstance(raw[0], bytes) else str(raw[0])
+            meta = (
+                raw[0].decode("utf-8", errors="replace")
+                if isinstance(raw[0], bytes)
+                else str(raw[0])
+            )
         elif isinstance(raw, (bytes, bytearray)):
             header_bytes = bytes(raw)
             meta = ""
@@ -662,7 +643,7 @@ def _fetch_headers(server, uids: list[bytes]) -> list[dict]:
 
         results.append(
             {
-                "uid": int(uid) if isinstance(uid, (bytes, bytearray)) else int(uid),
+                "uid": int(uid),
                 "date": date,
                 "from": from_addr,
                 "subject": subject,
@@ -703,7 +684,9 @@ def render_table_messages(data: dict) -> str:
     # 若消息含 folder 字段（来自 --all-folders），多显示一列
     has_folder = any(m.get("folder") for m in messages)
     if has_folder:
-        lines = [f"System: {data.get('system', '')}  Folder: {data.get('folder', '')}  共 {data.get('total', 0)} 封"]
+        lines = [
+            f"System: {data.get('system', '')}  Folder: {data.get('folder', '')}  共 {data.get('total', 0)} 封"
+        ]
         lines.append("文件夹  |  UID  |  日期  |  发件人  |  主题  |  未读  |  附件")
         for m in messages:
             unread = "是" if m.get("unread") else "否"
@@ -713,7 +696,9 @@ def render_table_messages(data: dict) -> str:
                 f"{m.get('subject')}  |  {unread}  |  {attach}"
             )
     else:
-        lines = [f"System: {data.get('system', '')}  Folder: {data.get('folder', '')}  共 {data.get('total', 0)} 封"]
+        lines = [
+            f"System: {data.get('system', '')}  Folder: {data.get('folder', '')}  共 {data.get('total', 0)} 封"
+        ]
         lines.append("UID  |  日期  |  发件人  |  主题  |  未读  |  附件")
         for m in messages:
             unread = "是" if m.get("unread") else "否"
@@ -791,12 +776,12 @@ def cmd_send(args) -> int:
     server = get_smtp(config)
     try:
         server.sendmail(config.from_address, recipients, message.as_string())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise ServiceError(f"邮件发送失败: {exc}") from exc
     finally:
         try:
             server.quit()
-        except Exception:  # noqa: BLE001,S110
+        except Exception:
             pass
 
     result = {
@@ -836,7 +821,11 @@ def _list_folder_names(server) -> list[str]:
     for item in data:
         if not item:
             continue
-        line = item.decode("utf-8", errors="replace") if isinstance(item, (bytes, bytearray)) else str(item)
+        line = (
+            item.decode("utf-8", errors="replace")
+            if isinstance(item, (bytes, bytearray))
+            else str(item)
+        )
         # 格式: (\HasNoChildren) "/" "INBOX"  也可能是 (\HasNoChildren) "/" INBOX（不带引号）
         m = re.match(r'\(([^)]*)\)\s+"([^"]*)"\s+"?([^"]+)"?$', line)
         if m:
@@ -937,7 +926,11 @@ def _filter_unread(server, uids: list[bytes]) -> list[bytes]:
         meta = data[0]
         if isinstance(meta, tuple):
             meta = meta[0]
-        meta_str = meta.decode("utf-8", errors="replace") if isinstance(meta, (bytes, bytearray)) else str(meta)
+        meta_str = (
+            meta.decode("utf-8", errors="replace")
+            if isinstance(meta, (bytes, bytearray))
+            else str(meta)
+        )
         if "\\Seen" not in meta_str:
             result.append(uid)
     return result
@@ -955,7 +948,11 @@ def cmd_read(args) -> int:
         raw = data[0]
         if not isinstance(raw, tuple) or len(raw) < 2:
             raise ServiceError(f"读取 UID {args.uid} 失败：返回格式异常")
-        meta = raw[0].decode("utf-8", errors="replace") if isinstance(raw[0], (bytes, bytearray)) else str(raw[0])
+        meta = (
+            raw[0].decode("utf-8", errors="replace")
+            if isinstance(raw[0], (bytes, bytearray))
+            else str(raw[0])
+        )
         raw_bytes = raw[1] if isinstance(raw[1], (bytes, bytearray)) else b""
         flags: list[bytes] = []
         flag_match = re.search(r"FLAGS \(([^)]*)\)", meta)
@@ -1044,8 +1041,18 @@ def _format_since(date_str: str) -> str:
     if not (1 <= month <= 12 and 1 <= day <= 31):
         raise ServiceError(f"无效的日期: {date_str!r}")
     months = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
     ]
     return f"{day:02d}-{months[month - 1]}-{year}"
 
@@ -1088,12 +1095,10 @@ def cmd_mark_read(args) -> int:
 
 
 def cmd_save_attachments(args) -> int:
-    config = resolve_email_config(
-        system=args.system, need_imap=True, need_attachments_dir=True
-    )
+    config = resolve_email_config(system=args.system, need_imap=True, need_attachments_dir=True)
 
     save_dir = config.attachments_dir
-    assert save_dir is not None  # noqa: S101
+    assert save_dir is not None
     os.makedirs(save_dir, exist_ok=True)
 
     server = get_imap(config)
@@ -1179,7 +1184,7 @@ def _resolve_limit(limit: int | None, default: int) -> int:
 def _safe_logout(server) -> None:
     try:
         server.logout()
-    except Exception:  # noqa: BLE001,S110
+    except Exception:
         pass
 
 
@@ -1250,9 +1255,16 @@ def build_parser() -> argparse.ArgumentParser:
     add_system_arg(p)
     add_format_arg(p)
     add_folder_arg(p)
-    p.add_argument("--limit", type=int, default=None, help=f"数量上限，默认 {LIST_DEFAULT_LIMIT}，最大 {MAX_LIMIT}")
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=f"数量上限，默认 {LIST_DEFAULT_LIMIT}，最大 {MAX_LIMIT}",
+    )
     p.add_argument("--unread-only", action="store_true", help="只列未读")
-    p.add_argument("--all-folders", action="store_true", help="遍历所有文件夹（单连接），忽略 --folder")
+    p.add_argument(
+        "--all-folders", action="store_true", help="遍历所有文件夹（单连接），忽略 --folder"
+    )
     p.set_defaults(func=cmd_list)
 
     # read
@@ -1271,8 +1283,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--from", dest="from_filter", default=None, help="发件人关键词")
     p.add_argument("--subject", default=None, help="主题关键词")
     p.add_argument("--since", default=None, help="日期，格式 YYYY-MM-DD")
-    p.add_argument("--limit", type=int, default=None, help=f"数量上限，默认 {SEARCH_DEFAULT_LIMIT}，最大 {MAX_LIMIT}")
-    p.add_argument("--all-folders", action="store_true", help="遍历所有文件夹（单连接），忽略 --folder")
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help=f"数量上限，默认 {SEARCH_DEFAULT_LIMIT}，最大 {MAX_LIMIT}",
+    )
+    p.add_argument(
+        "--all-folders", action="store_true", help="遍历所有文件夹（单连接），忽略 --folder"
+    )
     p.set_defaults(func=cmd_search)
 
     # folders
@@ -1310,4 +1329,4 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except ServiceError as err:
-        raise SystemExit(print_error(err))
+        raise SystemExit(print_error(err)) from err

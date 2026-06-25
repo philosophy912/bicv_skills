@@ -1,11 +1,14 @@
-"""系统配置解析公共模块 — HTTP 服务专用精简版。
+"""系统配置解析公共模块 — MySQL 专用精简版。
 
-仅导出 Gerrit / Jenkins / ZenTao 脚本用到的组件：ServiceError、ServiceTarget、
-配置加载与系统匹配查找、HTTP 连接目标解析、输出辅助函数。
-每个 skill 按需携带一份 system_config.py，互不依赖、运行时独立。
+仅导出 mysql_query.py 用到的函数和数据类型：
+  - ServiceError：通用服务错误
+  - MySQLConnectionConfig：MySQL 连接参数 dataclass
+  - load_systems_config / find_system / system_matches：配置加载与系统匹配
+  - resolve_mysql_config：从 ~/.bicv/mysql.json 解析连接参数
+  - print_error：错误输出辅助
 
-⚠️ 此文件在 gerrit-restapi / jenkins-restapi / zentao-restapi 间完全相同，
-修改任一处必须同步另外两处。
+⚠️ 此文件仅用于 mysql skill，不与其他 skill 共享。
+mysql 脚本通过 import _mysql_config 导入，避免与其他 skill 的 system_config.py 路径冲突。
 """
 
 from __future__ import annotations
@@ -14,7 +17,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib import parse
 
 
 @dataclass
@@ -32,19 +34,15 @@ class ServiceError(Exception):
 
 
 @dataclass
-class ServiceTarget:
-    """HTTP 服务连接目标。"""
+class MySQLConnectionConfig:
+    """MySQL 连接参数。"""
 
-    url: str
-    auth: tuple[str, str] | None
+    host: str
+    port: int
+    database: str | None
+    username: str
+    password: str
     system_name: str | None = None
-
-
-def parse_auth(auth_value: str) -> tuple[str, str]:
-    username, sep, password = auth_value.partition(":")
-    if not sep:
-        raise ServiceError("Auth must use username:token or username:password format")
-    return username, password
 
 
 def load_systems_config(config_name: str) -> dict[str, Any]:
@@ -78,24 +76,8 @@ def load_systems_config(config_name: str) -> dict[str, Any]:
     return data
 
 
-def auth_from_system(
-    system_config: dict[str, Any] | None,
-    password_key: str = "password",
-) -> tuple[str, str] | None:
-    """从 system config 中提取 (username, password)。"""
-    if not system_config:
-        return None
-
-    username = str(system_config.get("username", "")).strip()
-    password = str(system_config.get(password_key, "")).strip()
-
-    if username and password:
-        return username, password
-    return None
-
-
 def system_matches(selector: str, system_name: str, system_config: dict[str, Any]) -> bool:
-    """selector 是否匹配 system_name 或其别名 / URL。"""
+    """selector 是否匹配 system_name 或其别名 / host。"""
     needle = selector.strip().lower()
     if not needle:
         return False
@@ -109,13 +91,9 @@ def system_matches(selector: str, system_name: str, system_config: dict[str, Any
             if str(alias).strip().lower() == needle:
                 return True
 
-    url = str(system_config.get("url", "")).strip()
-    if url:
-        parsed = parse.urlparse(url)
-        hostname = (parsed.hostname or "").lower()
-        netloc = (parsed.netloc or "").lower()
-        if hostname == needle or netloc == needle or url.lower() == needle:
-            return True
+    host = str(system_config.get("host", "")).strip()
+    if host and host.lower() == needle:
+        return True
 
     return False
 
@@ -141,15 +119,12 @@ def find_system(
     return matches[0]
 
 
-def resolve_target(
-    url_override: str | None,
-    user: str | None,
-    system: str | None,
+def resolve_mysql_config(
+    system: str | None = None,
     *,
-    config_name: str,
-    password_key: str = "password",
-) -> ServiceTarget:
-    """从配置 + CLI 覆盖参数解析 HTTP 连接目标。"""
+    config_name: str = "mysql.json",
+) -> MySQLConnectionConfig:
+    """从 ~/.bicv/<config_name> 解析 MySQL 连接参数。"""
     config_data = load_systems_config(config_name)
     systems = config_data["systems"]
 
@@ -157,21 +132,38 @@ def resolve_target(
     if not configured_system:
         raise ServiceError(f"No --system specified and no default_system in ~/.bicv/{config_name}")
 
-    _, system_config = find_system(configured_system, systems, config_data["_config_path"])
+    system_name, system_config = find_system(
+        configured_system, systems, config_data["_config_path"]
+    )
 
-    url = ((url_override or "").strip() or str(system_config.get("url", "")).strip()).rstrip("/")
-    if not url:
+    host = str(system_config.get("host", "")).strip()
+    if not host:
         raise ServiceError(
-            f"System config is missing url field; set url in ~/.bicv/{config_name} for this system"
+            f"System config is missing host field; set host in ~/.bicv/{config_name}"
+            f" for system {system_name!r}"
         )
 
-    auth = parse_auth(user) if user else auth_from_system(system_config, password_key)
-    if auth is None:
+    username = str(system_config.get("username", "")).strip()
+    password = str(system_config.get("password", "")).strip()
+
+    port_raw = system_config.get("port")
+    try:
+        port = int(port_raw) if port_raw is not None else 3306
+    except (TypeError, ValueError) as exc:
         raise ServiceError(
-            f"This operation requires auth; use --user or set "
-            f"username/{password_key} in ~/.bicv/{config_name} for this system"
-        )
-    return ServiceTarget(url=url, auth=auth, system_name=configured_system)
+            f"Invalid port value {port_raw!r} in ~/.bicv/{config_name} for system {system_name!r}"
+        ) from exc
+
+    database = str(system_config.get("database", "")).strip() or None
+
+    return MySQLConnectionConfig(
+        host=host,
+        port=port,
+        database=database,
+        username=username,
+        password=password,
+        system_name=system_name,
+    )
 
 
 def print_error(err: ServiceError) -> int:
@@ -179,16 +171,3 @@ def print_error(err: ServiceError) -> int:
     if err.response_text:
         print(err.response_text.strip())
     return 1
-
-
-def print_system(target: ServiceTarget) -> None:
-    if target.system_name:
-        print(f"System: {target.system_name}")
-
-
-def print_json_result(target: ServiceTarget, data: Any, heading: str | None = None) -> int:
-    print_system(target)
-    if heading:
-        print(heading)
-    print(json.dumps(data, ensure_ascii=False, indent=2))
-    return 0

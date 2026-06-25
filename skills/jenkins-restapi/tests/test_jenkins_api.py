@@ -8,18 +8,14 @@ import json
 from unittest import mock
 from urllib import error
 
-import pytest
-
-from system_config import ServiceError
 import jenkins_api
+import pytest
 
 JenkinsError = jenkins_api.JenkinsError
 JenkinsTarget = jenkins_api.JenkinsTarget
 
 # A canned JenkinsTarget with auth so request_text sets Basic headers.
-MOCK_TARGET = JenkinsTarget(
-    url="http://jenkins.mock", auth=("user", "token"), system_name="mock"
-)
+MOCK_TARGET = JenkinsTarget(url="http://jenkins.mock", auth=("user", "token"), system_name="mock")
 # A target without auth, for the no-auth branches.
 NO_AUTH_TARGET = JenkinsTarget(url="http://jenkins.mock", auth=None)
 
@@ -38,7 +34,10 @@ def _urlopen_cm(body: bytes = b"{}"):
 
 def _http_error(code: int, body: bytes = b"err body"):
     return error.HTTPError(
-        "http://jenkins.mock", code, "Error", {},  # type: ignore[arg-type]
+        "http://jenkins.mock",
+        code,
+        "Error",
+        {},  # type: ignore[arg-type]
         mock.MagicMock(read=mock.MagicMock(return_value=body)),
     )
 
@@ -54,26 +53,27 @@ class TestGetCrumb:
         assert jenkins_api.get_crumb(target) is None
 
     def test_returns_crumb_pair(self):
-        body = json.dumps(
-            {"crumbRequestField": "Jenkins-Crumb", "crumb": "abc123"}
-        ).encode()
+        body = json.dumps({"crumbRequestField": "Jenkins-Crumb", "crumb": "abc123"}).encode()
         with mock.patch("jenkins_api.request_json", return_value=json.loads(body)):
             result = jenkins_api.get_crumb(MOCK_TARGET)
         assert result == ("Jenkins-Crumb", "abc123")
 
     def test_403_returns_none(self):
-        with mock.patch("jenkins_api.request_json",
-                        side_effect=JenkinsError("fail", status_code=403)):
+        with mock.patch(
+            "jenkins_api.request_json", side_effect=JenkinsError("fail", status_code=403)
+        ):
             assert jenkins_api.get_crumb(MOCK_TARGET) is None
 
     def test_404_returns_none(self):
-        with mock.patch("jenkins_api.request_json",
-                        side_effect=JenkinsError("fail", status_code=404)):
+        with mock.patch(
+            "jenkins_api.request_json", side_effect=JenkinsError("fail", status_code=404)
+        ):
             assert jenkins_api.get_crumb(MOCK_TARGET) is None
 
     def test_other_status_reraises(self):
-        with mock.patch("jenkins_api.request_json",
-                        side_effect=JenkinsError("fail", status_code=500)):
+        with mock.patch(
+            "jenkins_api.request_json", side_effect=JenkinsError("fail", status_code=500)
+        ):
             with pytest.raises(JenkinsError):
                 jenkins_api.get_crumb(MOCK_TARGET)
 
@@ -82,13 +82,15 @@ class TestGetCrumb:
             assert jenkins_api.get_crumb(MOCK_TARGET) is None
 
     def test_missing_fields_returns_none(self):
-        with mock.patch("jenkins_api.request_json",
-                        return_value={"crumbRequestField": "Jenkins-Crumb"}):
+        with mock.patch(
+            "jenkins_api.request_json", return_value={"crumbRequestField": "Jenkins-Crumb"}
+        ):
             assert jenkins_api.get_crumb(MOCK_TARGET) is None
 
     def test_empty_field_values_returns_none(self):
-        with mock.patch("jenkins_api.request_json",
-                        return_value={"crumbRequestField": "", "crumb": ""}):
+        with mock.patch(
+            "jenkins_api.request_json", return_value={"crumbRequestField": "", "crumb": ""}
+        ):
             assert jenkins_api.get_crumb(MOCK_TARGET) is None
 
 
@@ -137,9 +139,7 @@ class TestBuildUrl:
         assert jenkins_api.build_url("http://j", "/api/json", params=None) == "http://j/api/json"
 
     def test_multiple_params_doseq(self):
-        url = jenkins_api.build_url(
-            "http://j", "/api/json", params={"a": ["x", "y"], "b": "z"}
-        )
+        url = jenkins_api.build_url("http://j", "/api/json", params={"a": ["x", "y"], "b": "z"})
         assert "a=x" in url and "a=y" in url and "b=z" in url
 
 
@@ -181,7 +181,9 @@ class TestRequestText:
         with mock.patch("urllib.request.urlopen") as m:
             m.return_value = _urlopen_cm(b"{}")
             jenkins_api.request_text(
-                "GET", MOCK_TARGET, "/api/json",
+                "GET",
+                MOCK_TARGET,
+                "/api/json",
                 headers={"Accept": "text/plain"},
             )
             req = m.call_args[0][0]
@@ -192,9 +194,7 @@ class TestRequestText:
         with mock.patch("jenkins_api.get_crumb", return_value=crumb_pair) as gc:
             with mock.patch("urllib.request.urlopen") as m:
                 m.return_value = _urlopen_cm(b"{}")
-                jenkins_api.request_text(
-                    "POST", MOCK_TARGET, "/build", include_crumb=True
-                )
+                jenkins_api.request_text("POST", MOCK_TARGET, "/build", include_crumb=True)
                 req = m.call_args[0][0]
                 assert req.get_header("Jenkins-crumb") == "abc123"
         gc.assert_called_once_with(MOCK_TARGET)
@@ -203,9 +203,7 @@ class TestRequestText:
         with mock.patch("jenkins_api.get_crumb", return_value=None):
             with mock.patch("urllib.request.urlopen") as m:
                 m.return_value = _urlopen_cm(b"{}")
-                jenkins_api.request_text(
-                    "POST", NO_AUTH_TARGET, "/build", include_crumb=True
-                )
+                jenkins_api.request_text("POST", NO_AUTH_TARGET, "/build", include_crumb=True)
                 req = m.call_args[0][0]
                 assert req.get_header("Jenkins-crumb") is None
 
@@ -219,8 +217,11 @@ class TestRequestText:
         with mock.patch("urllib.request.urlopen") as m:
             m.return_value = _urlopen_cm(b"{}")
             jenkins_api.request_text(
-                "POST", MOCK_TARGET, "/build",
-                params={"depth": 1}, body=b"data",
+                "POST",
+                MOCK_TARGET,
+                "/build",
+                params={"depth": 1},
+                body=b"data",
             )
             req = m.call_args[0][0]
             assert req.data == b"data"
@@ -249,8 +250,7 @@ class TestRequestText:
 
 class TestRequestJson:
     def test_get_returns_parsed_json(self):
-        with mock.patch("jenkins_api.request_text",
-                        return_value='{"jobs": [], "mode": "NORMAL"}'):
+        with mock.patch("jenkins_api.request_text", return_value='{"jobs": [], "mode": "NORMAL"}'):
             result = jenkins_api.request_json("GET", MOCK_TARGET, "/api/json")
         assert result == {"jobs": [], "mode": "NORMAL"}
 
@@ -264,7 +264,9 @@ class TestRequestJson:
 
         with mock.patch("jenkins_api.request_text", side_effect=fake_request_text):
             result = jenkins_api.request_json(
-                "POST", MOCK_TARGET, "/create",
+                "POST",
+                MOCK_TARGET,
+                "/create",
                 payload={"name": "x"},
             )
         assert result == {"status": "ok"}
@@ -290,9 +292,7 @@ class TestRequestJson:
 
     def test_passes_include_crumb(self):
         with mock.patch("jenkins_api.request_text", return_value="{}") as rt:
-            jenkins_api.request_json(
-                "POST", MOCK_TARGET, "/build", include_crumb=True
-            )
+            jenkins_api.request_json("POST", MOCK_TARGET, "/build", include_crumb=True)
             _, kw = rt.call_args
             assert kw["include_crumb"] is True
 
@@ -335,9 +335,7 @@ class TestParseParams:
 
     def test_value_contains_equals(self):
         # only the first '=' is the separator
-        assert jenkins_api.parse_params(["URL=http://x?a=b"]) == {
-            "URL": "http://x?a=b"
-        }
+        assert jenkins_api.parse_params(["URL=http://x?a=b"]) == {"URL": "http://x?a=b"}
 
 
 # ===================================================================
@@ -403,8 +401,7 @@ class TestCmdGetJob:
             stack.enter_context(_mock_target_patch())
             rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
             rj.return_value = {"name": "job-a"}
-            args = mock.MagicMock(job="job-a", depth=None,
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(job="job-a", depth=None, jenkins=None, user=None, system=None)
             rc = jenkins_api.cmd_get_job(args)
         assert rc == 0
         _, kw = rj.call_args
@@ -415,8 +412,7 @@ class TestCmdGetJob:
             stack.enter_context(_mock_target_patch())
             rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
             rj.return_value = {"name": "job-a"}
-            args = mock.MagicMock(job="job-a", depth=2,
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(job="job-a", depth=2, jenkins=None, user=None, system=None)
             jenkins_api.cmd_get_job(args)
         _, kw = rj.call_args
         assert kw["params"] == {"depth": 2}
@@ -428,8 +424,7 @@ class TestCmdGetBuildInfo:
             stack.enter_context(_mock_target_patch())
             rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
             rj.return_value = {"id": "5", "result": "SUCCESS"}
-            args = mock.MagicMock(job="job-a", number="5",
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(job="job-a", number="5", jenkins=None, user=None, system=None)
             rc = jenkins_api.cmd_get_build_info(args)
         assert rc == 0
         args_called, _ = rj.call_args
@@ -440,8 +435,9 @@ class TestCmdGetBuildInfo:
             stack.enter_context(_mock_target_patch())
             rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
             rj.return_value = {"id": "10"}
-            args = mock.MagicMock(job="job-a", number="lastBuild",
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(
+                job="job-a", number="lastBuild", jenkins=None, user=None, system=None
+            )
             jenkins_api.cmd_get_build_info(args)
         args_called, _ = rj.call_args
         assert "/job/job-a/lastBuild/api/json" in args_called[2]
@@ -453,8 +449,7 @@ class TestCmdGetConsoleLog:
             stack.enter_context(_mock_target_patch())
             rt = stack.enter_context(mock.patch("jenkins_api.request_text"))
             rt.return_value = "line1\nline2\n"
-            args = mock.MagicMock(job="job-a", number="3",
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(job="job-a", number="3", jenkins=None, user=None, system=None)
             rc = jenkins_api.cmd_get_console_log(args)
         out = capsys.readouterr().out
         assert rc == 0
@@ -470,8 +465,7 @@ class TestCmdBuildJob:
             stack.enter_context(_mock_target_patch())
             rt = stack.enter_context(mock.patch("jenkins_api.request_text"))
             rt.return_value = ""
-            args = mock.MagicMock(job="job-a", param=[],
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(job="job-a", param=[], jenkins=None, user=None, system=None)
             rc = jenkins_api.cmd_build_job(args)
         out = capsys.readouterr().out
         assert rc == 0
@@ -487,8 +481,13 @@ class TestCmdBuildJob:
             stack.enter_context(_mock_target_patch())
             rt = stack.enter_context(mock.patch("jenkins_api.request_text"))
             rt.return_value = "Queued"
-            args = mock.MagicMock(job="job-a", param=["BRANCH=main", "DEBUG=true"],
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(
+                job="job-a",
+                param=["BRANCH=main", "DEBUG=true"],
+                jenkins=None,
+                user=None,
+                system=None,
+            )
             rc = jenkins_api.cmd_build_job(args)
         out = capsys.readouterr().out
         assert rc == 0
@@ -520,8 +519,7 @@ class TestCmdDisableJob:
             stack.enter_context(_mock_target_patch())
             rt = stack.enter_context(mock.patch("jenkins_api.request_text"))
             rt.return_value = ""
-            args = mock.MagicMock(job="job-a",
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(job="job-a", jenkins=None, user=None, system=None)
             rc = jenkins_api.cmd_disable_job(args)
         out = capsys.readouterr().out
         assert rc == 0
@@ -537,8 +535,7 @@ class TestCmdEnableJob:
             stack.enter_context(_mock_target_patch())
             rt = stack.enter_context(mock.patch("jenkins_api.request_text"))
             rt.return_value = ""
-            args = mock.MagicMock(job="job-a",
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(job="job-a", jenkins=None, user=None, system=None)
             rc = jenkins_api.cmd_enable_job(args)
         out = capsys.readouterr().out
         assert rc == 0
@@ -554,8 +551,7 @@ class TestCmdStopBuild:
             stack.enter_context(_mock_target_patch())
             rt = stack.enter_context(mock.patch("jenkins_api.request_text"))
             rt.return_value = ""
-            args = mock.MagicMock(job="job-a", number="7",
-                                  jenkins=None, user=None, system=None)
+            args = mock.MagicMock(job="job-a", number="7", jenkins=None, user=None, system=None)
             rc = jenkins_api.cmd_stop_build(args)
         out = capsys.readouterr().out
         assert rc == 0
@@ -575,8 +571,15 @@ class TestCli:
         parser = jenkins_api.build_parser()
         choices = parser._subparsers._actions[-1].choices
         for cmd in (
-            "list-jobs", "get-job", "get-build-info", "get-console-log",
-            "build-job", "list-queue", "disable-job", "enable-job", "stop-build",
+            "list-jobs",
+            "get-job",
+            "get-build-info",
+            "get-console-log",
+            "build-job",
+            "list-queue",
+            "disable-job",
+            "enable-job",
+            "stop-build",
         ):
             assert cmd in choices, f"Missing: {cmd}"
 
@@ -601,15 +604,11 @@ class TestCli:
         assert args.depth is None
 
     def test_get_job_depth_int(self):
-        args = jenkins_api.build_parser().parse_args(
-            ["get-job", "--job", "x", "--depth", "3"]
-        )
+        args = jenkins_api.build_parser().parse_args(["get-job", "--job", "x", "--depth", "3"])
         assert args.depth == 3
 
     def test_build_number_default(self):
-        args = jenkins_api.build_parser().parse_args(
-            ["get-build-info", "--job", "x"]
-        )
+        args = jenkins_api.build_parser().parse_args(["get-build-info", "--job", "x"])
         assert args.number == "lastBuild"
 
     def test_build_job_param_append(self):
@@ -653,9 +652,11 @@ class TestMain:
 
     def test_main_invokes_real_handler(self, capsys):
         # End-to-end via the real parser, with _target + urlopen mocked.
-        with mock.patch("jenkins_api._target", return_value=MOCK_TARGET), \
-             mock.patch("urllib.request.urlopen") as m, \
-             mock.patch("sys.argv", ["jenkins_api", "list-jobs"]):
+        with (
+            mock.patch("jenkins_api._target", return_value=MOCK_TARGET),
+            mock.patch("urllib.request.urlopen") as m,
+            mock.patch("sys.argv", ["jenkins_api", "list-jobs"]),
+        ):
             m.return_value = _urlopen_cm(
                 json.dumps({"jobs": [{"name": "a", "url": "u", "color": "blue"}]}).encode()
             )
@@ -666,9 +667,11 @@ class TestMain:
     def test_main_jenkins_error_via_real_path(self, capsys):
         # Real path that raises JenkinsError (HTTPError -> JenkinsError) and is
         # caught by main's try/except.
-        with mock.patch("jenkins_api._target", return_value=MOCK_TARGET), \
-             mock.patch("urllib.request.urlopen") as m, \
-             mock.patch("sys.argv", ["jenkins_api", "list-jobs"]):
+        with (
+            mock.patch("jenkins_api._target", return_value=MOCK_TARGET),
+            mock.patch("urllib.request.urlopen") as m,
+            mock.patch("sys.argv", ["jenkins_api", "list-jobs"]),
+        ):
             m.side_effect = _http_error(404, b"nope")
             rc = jenkins_api.main()
         assert rc == 1

@@ -24,8 +24,7 @@
 一条命令装到指定的四个 agent，替换 `philosophy912/bicv_skills` 为你的实际路径即可：
 
 ```bash
-npx skills add philosophy912/bicv_skills -y -g \
-  --agent claude-code codex hermes-agent openclaw
+npx skills add philosophy912/bicv_skills -y -g --agent claude-code codex hermes-agent openclaw
 ```
 
 - `-g` 安装到用户级（所有项目可用），不加则装到当前项目的 `.claude/skills/` 等。
