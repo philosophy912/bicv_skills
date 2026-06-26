@@ -4,6 +4,7 @@ result formatting, query execution, CLI parsing, and main()."""
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from unittest import mock
 
 import mysql_query
@@ -548,3 +549,57 @@ class TestMain:
         rsql.assert_called_once_with("@q.sql")
         gc.assert_called_once_with(cfg, "x")
         ex.assert_called_once_with(conn, "UPDATE t SET a=1", "update")
+
+
+# ===========================================================================
+# _DecimalEncoder
+# ===========================================================================
+
+
+class TestDecimalEncoder:
+    """Decimal-aware JSON serialisation — covers the DecimalEncoder in main()."""
+
+    def test_converts_decimal_to_int(self):
+        """Decimal(10) serialises as integer 10."""
+        payload = {"val": Decimal("10")}
+        raw = json.dumps(payload, cls=mysql_query._DecimalEncoder)
+        assert json.loads(raw) == {"val": 10}
+
+    def test_converts_decimal_to_float(self):
+        """Decimal('3.14') serialises as float."""
+        payload = {"val": Decimal("3.14")}
+        raw = json.dumps(payload, cls=mysql_query._DecimalEncoder)
+        assert json.loads(raw) == {"val": 3.14}
+
+    def test_main_produces_valid_json_with_decimal_rows(self, capsys):
+        """Full main() path: execute_query returns Decimal rows → valid JSON."""
+        cfg = _config(system_name="prod")
+        conn = mock.MagicMock()
+        conn.is_connected.return_value = True
+        decimal_result = {
+            "columns": ["n"],
+            "rows": [[Decimal("100")], [Decimal("3.14")]],
+            "total": 2,
+            "truncated": False,
+        }
+
+        with (
+            mock.patch("sys.argv", ["mysql_query.py", "select", "SELECT n FROM t"]),
+            mock.patch("mysql_query.resolve_mysql_config", return_value=cfg),
+            mock.patch("mysql_query.read_sql_file", return_value="SELECT n FROM t"),
+            mock.patch("mysql_query.get_connection", return_value=conn),
+            mock.patch("mysql_query.execute_query", return_value=decimal_result),
+        ):
+            rc = mysql_query.main()
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["data"]["rows"] == [[100], [3.14]]
+        assert payload["data"]["total"] == 2
+        conn.is_connected.assert_called_once()
+        conn.close.assert_called_once()
+
+    def test_non_decimal_fallthrough_preserves_typeerror(self):
+        """Non-Decimal un-serialisable object → TypeError (super().default)."""
+        with pytest.raises(TypeError):
+            json.dumps({"x": object()}, cls=mysql_query._DecimalEncoder)

@@ -21,6 +21,7 @@ import argparse
 import json
 import re
 import sys
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -160,6 +161,15 @@ def get_connection(
 # ---------------------------------------------------------------------------
 # Output formatting
 # ---------------------------------------------------------------------------
+
+
+class _DecimalEncoder(json.JSONEncoder):
+    """JSON encoder that converts Decimal to int or float."""
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, Decimal):
+            return int(o) if o == int(o) else float(o)
+        return super().default(o)
 
 
 def format_results(columns: list[str], rows: list[tuple[Any, ...]]) -> None:
@@ -311,6 +321,7 @@ def main() -> int:
                 {"system": config.system_name, "data": result},
                 ensure_ascii=False,
                 indent=2,
+                cls=_DecimalEncoder,
             )
         )
         return 0
