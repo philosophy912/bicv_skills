@@ -303,14 +303,17 @@ class TestResolveTarget:
 class TestPrintHelpers:
     def test_print_error_message(self, capsys):
         rc = sc.print_error(ServiceError("boom"))
-        out = capsys.readouterr().out
-        assert "boom" in out
+        captured = capsys.readouterr()
+        assert captured.out == ""  # stdout 保持空，错误走 stderr
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "boom"
         assert rc == 1
 
     def test_print_error_with_response_text(self, capsys):
         rc = sc.print_error(ServiceError("boom", response_text="  detail  "))
-        out = capsys.readouterr().out
-        assert "detail" in out
+        captured = capsys.readouterr()
+        payload = json.loads(captured.err)
+        assert "detail" in payload["error"]["details"]
         assert rc == 1
 
     def test_print_system_with_name(self, capsys):
@@ -325,14 +328,15 @@ class TestPrintHelpers:
         t = ServiceTarget(url="https://x", auth=None, system_name="s")
         rc = sc.print_json_result(t, {"k": "v"}, heading="Title")
         out = capsys.readouterr().out
-        assert "System: s" in out
-        assert "Title" in out
-        assert '"k": "v"' in out
+        payload = json.loads(out)
+        assert payload == {"system": "s", "data": {"k": "v"}}
+        assert "Title" not in out  # heading 已不再打印
         assert rc == 0
 
     def test_print_json_result_no_heading(self, capsys):
         t = ServiceTarget(url="https://x", auth=None, system_name="s")
         rc = sc.print_json_result(t, [1, 2])
         out = capsys.readouterr().out
-        assert "[\n  1," in out
+        payload = json.loads(out)
+        assert payload == {"system": "s", "data": [1, 2]}
         assert rc == 0

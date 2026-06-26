@@ -240,19 +240,24 @@ class TestResolveMysqlConfig:
 class TestPrintError:
     def test_prints_message(self, capsys):
         rc = cfg.print_error(ServiceError("boom"))
-        out = capsys.readouterr().out
-        assert "boom" in out
+        captured = capsys.readouterr()
+        assert captured.out == ""  # stdout 保持空，错误走 stderr
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "boom"
         assert rc == 1
 
     def test_prints_response_text(self, capsys):
         err = ServiceError("boom", response_text="  body detail  ")
         rc = cfg.print_error(err)
-        out = capsys.readouterr().out
-        assert "body detail" in out
+        captured = capsys.readouterr()
+        payload = json.loads(captured.err)
+        assert "body detail" in payload["error"]["details"]
         assert rc == 1
 
     def test_no_response_text(self, capsys):
         rc = cfg.print_error(ServiceError("boom"))
-        out = capsys.readouterr().out
-        assert "boom" in out
+        captured = capsys.readouterr()
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "boom"
+        assert payload["error"]["details"] is None
         assert rc == 1

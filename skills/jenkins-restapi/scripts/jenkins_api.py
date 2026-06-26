@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import sys
 import time
 from typing import Any
 from urllib import error, parse, request
@@ -15,7 +16,6 @@ from system_config import (
     ServiceTarget,
     print_error,
     print_json_result,
-    print_system,
     resolve_target,
 )
 
@@ -162,12 +162,21 @@ def cmd_list_jobs(args: argparse.Namespace) -> int:
     target = _target(args)
     data = request_json("GET", target, "/api/json", params={"tree": "jobs[name,url,color]"})
     jobs = data.get("jobs", []) if isinstance(data, dict) else []
-
-    print_system(target)
-    print(f"Found {len(jobs)} jobs:\n")
-    for job in jobs:
-        print(f"- [{job.get('color', 'unknown')}] {job.get('name', 'N/A')}")
-        print(f"  {job.get('url', 'N/A')}")
+    result = [
+        {
+            "name": job.get("name", "N/A"),
+            "url": job.get("url", "N/A"),
+            "color": job.get("color", "unknown"),
+        }
+        for job in jobs
+    ]
+    print(
+        json.dumps(
+            {"system": target.system_name, "data": {"jobs": result}},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -190,8 +199,19 @@ def cmd_get_console_log(args: argparse.Namespace) -> int:
     target = _target(args)
     path = f"/{encode_job_segment(args.job)}/{parse.quote(args.number, safe='')}/consoleText"
     text = request_text("GET", target, path)
-    print_system(target)
-    print(text)
+    if args.raw:
+        sys.stdout.write(text)
+        return 0
+    print(
+        json.dumps(
+            {
+                "system": target.system_name,
+                "data": {"job": args.job, "number": args.number, "log": text},
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -245,7 +265,13 @@ def cmd_list_builds(args: argparse.Namespace) -> int:
             }
         )
 
-    print(json.dumps(filtered, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {"system": target.system_name, "data": filtered},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -281,10 +307,16 @@ def cmd_build_job(args: argparse.Namespace) -> int:
         headers=headers,
         include_crumb=True,
     )
-    print_system(target)
-    print(f"Triggered build for job: {args.job}")
+    result: dict[str, Any] = {"job": args.job, "action": "triggered"}
     if response.strip():
-        print(response.strip())
+        result["response"] = response.strip()
+    print(
+        json.dumps(
+            {"system": target.system_name, "data": result},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -297,8 +329,13 @@ def cmd_disable_job(args: argparse.Namespace) -> int:
     target = _target(args)
     path = f"/{encode_job_segment(args.job)}/disable"
     request_text("POST", target, path, include_crumb=True)
-    print_system(target)
-    print(f"Disabled job: {args.job}")
+    print(
+        json.dumps(
+            {"system": target.system_name, "data": {"job": args.job, "action": "disabled"}},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -306,8 +343,13 @@ def cmd_enable_job(args: argparse.Namespace) -> int:
     target = _target(args)
     path = f"/{encode_job_segment(args.job)}/enable"
     request_text("POST", target, path, include_crumb=True)
-    print_system(target)
-    print(f"Enabled job: {args.job}")
+    print(
+        json.dumps(
+            {"system": target.system_name, "data": {"job": args.job, "action": "enabled"}},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -315,8 +357,16 @@ def cmd_stop_build(args: argparse.Namespace) -> int:
     target = _target(args)
     path = f"/{encode_job_segment(args.job)}/{parse.quote(args.number, safe='')}/stop"
     request_text("POST", target, path, include_crumb=True)
-    print_system(target)
-    print(f"Requested stop for {args.job} build {args.number}")
+    print(
+        json.dumps(
+            {
+                "system": target.system_name,
+                "data": {"job": args.job, "number": args.number, "action": "stopped"},
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -344,6 +394,11 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_args(get_console_log)
     add_job_arg(get_console_log)
     add_build_number_arg(get_console_log)
+    get_console_log.add_argument(
+        "--raw",
+        action="store_true",
+        help="直接输出 consoleText 原文（不包 JSON 信封），适合管道",
+    )
     get_console_log.set_defaults(handler=cmd_get_console_log)
 
     list_builds = subparsers.add_parser(

@@ -3,6 +3,7 @@ result formatting, query execution, CLI parsing, and main()."""
 
 from __future__ import annotations
 
+import json
 from unittest import mock
 
 import mysql_query
@@ -298,25 +299,30 @@ class TestExecuteQuerySelect:
             batches=[[(1, "al"), (2, "bob")]],
         )
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(conn, "SELECT id, name FROM t", "select")
-        out = capsys.readouterr().out
-        assert "id" in out and "name" in out
-        assert "2 row(s) returned" in out
+        result = mysql_query.execute_query(conn, "SELECT id, name FROM t", "select")
+        assert capsys.readouterr().out == ""  # 不再直接打印，交给 main 信封输出
+        assert result == {
+            "columns": ["id", "name"],
+            "rows": [[1, "al"], [2, "bob"]],
+            "total": 2,
+            "truncated": False,
+        }
         conn.commit.assert_not_called()
         cursor.close.assert_called_once()
 
-    def test_select_description_none_columns_empty(self, capsys):
-        # cursor.description is None -> columns == [] -> format_results is a no-op,
-        # but the "N row(s) returned" line still prints.
+    def test_select_description_none_columns_empty(self):
+        # cursor.description is None -> columns == []，rows/total 仍正确
         cursor = _mock_cursor(description=None, batches=[[(1,), (2,)]])
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(conn, "SELECT 1", "select")
-        out = capsys.readouterr().out
-        assert "2 row(s) returned" in out
-        # No table header printed since columns is empty.
-        assert " | " not in out
+        result = mysql_query.execute_query(conn, "SELECT 1", "select")
+        assert result == {
+            "columns": [],
+            "rows": [[1], [2]],
+            "total": 2,
+            "truncated": False,
+        }
 
-    def test_select_fetchmany_multiple_batches(self, capsys):
+    def test_select_fetchmany_multiple_batches(self):
         # Two non-empty batches then an empty one to terminate.
         batch1 = [(i,) for i in range(1000)]
         batch2 = [(i,) for i in range(1000, 1500)]
@@ -325,46 +331,49 @@ class TestExecuteQuerySelect:
             batches=[batch1, batch2],
         )
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(conn, "SELECT n FROM t", "select")
-        out = capsys.readouterr().out
-        assert "1500 row(s) returned" in out
+        result = mysql_query.execute_query(conn, "SELECT n FROM t", "select")
+        assert result["total"] == 1500
+        assert result["truncated"] is False
+        assert len(result["rows"]) == 1500
         # fetchmany called until it returned []
         assert cursor.fetchmany.call_count >= 3
 
-    def test_select_truncated_over_10000_rows(self, capsys):
+    def test_select_truncated_over_10000_rows(self):
         # 3 batches of 5000 = 15000 total -> truncation branch.
         batches = [[(i,) for i in range(k * 5000, (k + 1) * 5000)] for k in range(3)]
         cursor = _mock_cursor(description=[("n",)], batches=batches)
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(conn, "SELECT n FROM big", "select")
-        out = capsys.readouterr().out
-        assert "showing first 10000 of 15000 rows" in out
-        assert "truncated for display" in out
+        result = mysql_query.execute_query(conn, "SELECT n FROM big", "select")
+        assert result["total"] == 15000
+        assert result["truncated"] is True
+        assert len(result["rows"]) == 10000  # 截断到 10000
 
-    def test_select_zero_rows(self, capsys):
+    def test_select_zero_rows(self):
         cursor = _mock_cursor(description=[("id",)], batches=[[]])
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(conn, "SELECT id FROM empty", "select")
-        out = capsys.readouterr().out
-        assert "0 row(s) returned" in out
+        result = mysql_query.execute_query(conn, "SELECT id FROM empty", "select")
+        assert result == {
+            "columns": ["id"],
+            "rows": [],
+            "total": 0,
+            "truncated": False,
+        }
 
 
 class TestExecuteQueryWrite:
-    def test_insert_path_commits_and_prints_rowcount(self, capsys):
+    def test_insert_path_commits_and_returns_rowcount(self):
         cursor = _mock_cursor(rowcount=3)
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(conn, "INSERT INTO t (a) VALUES (1)", "insert")
-        out = capsys.readouterr().out
-        assert "3 row(s) affected" in out
+        result = mysql_query.execute_query(conn, "INSERT INTO t (a) VALUES (1)", "insert")
+        assert result == {"affected_rows": 3}
         conn.commit.assert_called_once()
         cursor.close.assert_called_once()
 
-    def test_update_path_commits_and_prints_rowcount(self, capsys):
+    def test_update_path_commits_and_returns_rowcount(self):
         cursor = _mock_cursor(rowcount=7)
         conn = _mock_connection(cursor)
-        mysql_query.execute_query(conn, "UPDATE t SET a=1 WHERE b=2", "update")
-        out = capsys.readouterr().out
-        assert "7 row(s) affected" in out
+        result = mysql_query.execute_query(conn, "UPDATE t SET a=1 WHERE b=2", "update")
+        assert result == {"affected_rows": 7}
         conn.commit.assert_called_once()
 
 
@@ -447,13 +456,15 @@ class TestMain:
             mock.patch("mysql_query.get_connection", return_value=conn),
             mock.patch("mysql_query.execute_query") as ex,
         ):
+            ex.return_value = {"columns": ["id"], "rows": [[1]], "total": 1, "truncated": False}
             rc = mysql_query.main()
 
         assert rc == 0
         ex.assert_called_once_with(conn, "SELECT 1", "select")
-        # System name printed
         out = capsys.readouterr().out
-        assert "System: prod" in out
+        payload = json.loads(out)
+        assert payload["system"] == "prod"
+        assert payload["data"]["total"] == 1
         # finally block closed the connection
         conn.is_connected.assert_called_once()
         conn.close.assert_called_once()
@@ -468,8 +479,9 @@ class TestMain:
             mock.patch("mysql_query.resolve_mysql_config", return_value=cfg),
             mock.patch("mysql_query.read_sql_file", return_value="SELECT 1"),
             mock.patch("mysql_query.get_connection", return_value=conn),
-            mock.patch("mysql_query.execute_query"),
+            mock.patch("mysql_query.execute_query") as ex,
         ):
+            ex.return_value = {"affected_rows": 0}
             rc = mysql_query.main()
         assert rc == 0
         conn.is_connected.assert_called_once()
@@ -484,10 +496,13 @@ class TestMain:
             mock.patch("mysql_query.resolve_mysql_config", return_value=cfg),
             mock.patch("mysql_query.read_sql_file", return_value="SELECT 1"),
             mock.patch("mysql_query.get_connection", return_value=conn),
-            mock.patch("mysql_query.execute_query"),
+            mock.patch("mysql_query.execute_query") as ex,
         ):
+            ex.return_value = {"affected_rows": 0}
             mysql_query.main()
         out = capsys.readouterr().out
+        payload = json.loads(out)
+        assert payload["system"] is None
         assert "System:" not in out
 
     def test_service_error_path_still_closes_connection(self):
@@ -526,6 +541,7 @@ class TestMain:
             mock.patch("mysql_query.get_connection", return_value=conn) as gc,
             mock.patch("mysql_query.execute_query") as ex,
         ):
+            ex.return_value = {"affected_rows": 1}
             rc = mysql_query.main()
 
         assert rc == 0

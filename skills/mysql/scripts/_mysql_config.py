@@ -14,6 +14,7 @@ mysql 脚本通过 import _mysql_config 导入，避免与其他 skill 的 syste
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -167,7 +168,18 @@ def resolve_mysql_config(
 
 
 def print_error(err: ServiceError) -> int:
-    print(f"Error: {err}")
-    if err.response_text:
-        print(err.response_text.strip())
+    """以 JSON 结构把错误输出到 stderr，退出码 1。"""
+    print(
+        json.dumps(
+            {
+                "error": {
+                    "message": err.message,
+                    "status_code": err.status_code,
+                    "details": err.response_text or None,
+                }
+            },
+            ensure_ascii=False,
+        ),
+        file=sys.stderr,
+    )
     return 1

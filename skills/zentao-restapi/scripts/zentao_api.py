@@ -11,7 +11,6 @@ from system_config import (
     ServiceError,
     ServiceTarget,
     print_json_result,
-    print_system,
     resolve_target,
 )
 from system_config import (
@@ -249,8 +248,13 @@ def with_confirm(cmd_name: str, resource_desc: str) -> Callable:
 def cmd_get_token(args: argparse.Namespace) -> int:
     target = _target(args)
     token = get_token(target, force=args.force)
-    print_system(target)
-    print(f"Token: {token}")
+    print(
+        json.dumps(
+            {"system": target.system_name, "data": {"token": token}},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

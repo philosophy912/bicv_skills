@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -175,20 +176,41 @@ def resolve_target(
 
 
 def print_error(err: ServiceError) -> int:
-    print(f"Error: {err}")
-    if err.response_text:
-        print(err.response_text.strip())
+    """以 JSON 结构把错误输出到 stderr，退出码 1。
+
+    stdout 保持空，便于调用方 / AI 直接 json.loads(stdout) 解析成功结果；
+    失败时读 stderr 取 ``{"error": {...}}``。
+    """
+    print(
+        json.dumps(
+            {
+                "error": {
+                    "message": err.message,
+                    "status_code": err.status_code,
+                    "details": err.response_text or None,
+                }
+            },
+            ensure_ascii=False,
+        ),
+        file=sys.stderr,
+    )
     return 1
 
 
 def print_system(target: ServiceTarget) -> None:
+    """人类可读的 System 行，仅供 --format human 等场景使用。
+
+    正常的 JSON 输出路径不再调用它（system 字段已并入 JSON 信封）。
+    """
     if target.system_name:
         print(f"System: {target.system_name}")
 
 
 def print_json_result(target: ServiceTarget, data: Any, heading: str | None = None) -> int:
-    print_system(target)
-    if heading:
-        print(heading)
-    print(json.dumps(data, ensure_ascii=False, indent=2))
+    """输出统一信封 ``{"system", "data"}`` 到 stdout。
+
+    ``heading`` 入参保留以兼容历史调用点，但不再打印（JSON 输出无需人类标题）。
+    stdout 仅含一个可直接 json.loads 的 JSON 值。
+    """
+    print(json.dumps({"system": target.system_name, "data": data}, ensure_ascii=False, indent=2))
     return 0

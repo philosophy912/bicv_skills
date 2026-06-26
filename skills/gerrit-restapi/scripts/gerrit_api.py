@@ -4,6 +4,7 @@
 import argparse
 import base64
 import json
+import sys
 from collections.abc import Callable
 from typing import Any
 from urllib import error, parse, request
@@ -12,7 +13,6 @@ from system_config import (
     ServiceError,
     ServiceTarget,
     print_json_result,
-    print_system,
     resolve_target,
 )
 
@@ -102,9 +102,22 @@ def request_json(
 
 
 def print_error(err: ServiceError) -> int:
-    print(f"错误: {err}")
-    if err.response_text:
-        print(strip_xssi_prefix(err.response_text).strip())
+    """以 JSON 结构把错误输出到 stderr，退出码 1。"""
+    print(
+        json.dumps(
+            {
+                "error": {
+                    "message": err.message,
+                    "status_code": err.status_code,
+                    "details": (
+                        strip_xssi_prefix(err.response_text).strip() if err.response_text else None
+                    ),
+                }
+            },
+            ensure_ascii=False,
+        ),
+        file=sys.stderr,
+    )
     return 1
 
 
@@ -152,21 +165,14 @@ def cmd_query_changes(args: argparse.Namespace) -> int:
         auth=target.auth,
         params=params,
     )
-
-    if args.json:
-        # 纯 JSON 输出（不带 system / heading），便于 agent / 脚本直接解析
-        print(json.dumps(changes, ensure_ascii=False, indent=2))
-        return 0
-
-    if not changes:
-        print("没有找到匹配的变更")
-        return 0
-
-    print_system(target)
-    print(f"找到 {len(changes)} 个变更:\n")
-    for change in changes:
-        wip = "[WIP] " if change.get("work_in_progress") else ""
-        print(f"- {change['_number']}: {wip}{change['subject']}")
+    # --json 保留为兼容开关（默认即 JSON 信封输出），不再影响输出形态
+    print(
+        json.dumps(
+            {"system": target.system_name, "data": changes},
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -179,45 +185,7 @@ def cmd_get_change_details(args: argparse.Namespace) -> int:
         auth=target.auth,
         params={"o": ["CURRENT_REVISION", "CURRENT_COMMIT", "DETAILED_LABELS"]},
     )
-
-    print_system(target)
-    print(f"变更详情 - {details['_number']}:\n")
-    print(f"主题: {details['subject']}")
-    print(f"状态: {details['status']}")
-    print(f"项目: {details.get('project', 'N/A')}")
-    print(f"分支: {details.get('branch', 'N/A')}")
-
-    owner = details.get("owner", {})
-    owner_name = owner.get("email") or owner.get("name") or owner.get("username") or "N/A"
-    print(f"所有者: {owner_name}")
-
-    reviewers = details.get("reviewers", {}).get("REVIEWER", [])
-    if reviewers:
-        print("\n审阅者:")
-        for reviewer in reviewers:
-            name = (
-                reviewer.get("email") or reviewer.get("name") or reviewer.get("username") or "N/A"
-            )
-            print(f"  - {name}")
-
-    labels = details.get("labels", {})
-    if labels:
-        print("\n标签投票:")
-        for label, info in labels.items():
-            approved = info.get("approved", {})
-            rejected = info.get("rejected", {})
-            summary = approved.get("name") or rejected.get("name") or "无汇总"
-            print(f"  - {label}: {summary}")
-
-    messages = details.get("messages", [])
-    if messages:
-        print("\n最近消息:")
-        for msg in messages[-3:]:
-            author = msg.get("author", {}).get("name", "Gerrit")
-            timestamp = msg.get("date", "无日期")
-            first_line = msg.get("message", "").splitlines()[0] if msg.get("message") else ""
-            print(f"  - [{timestamp}] ({author}): {first_line}")
-    return 0
+    return print_json_result(target, details)
 
 
 def cmd_get_change(args: argparse.Namespace) -> int:
@@ -293,8 +261,21 @@ def cmd_add_reviewer(args: argparse.Namespace) -> int:
         payload={"reviewer": args.reviewer, "state": args.state},
     )
     reviewer = result.get("reviewer", {}).get("email") if isinstance(result, dict) else None
-    print_system(target)
-    print(f"成功添加 {reviewer or args.reviewer} 为 {args.state}")
+    print(
+        json.dumps(
+            {
+                "system": target.system_name,
+                "data": {
+                    "change_id": args.change_id,
+                    "reviewer": reviewer or args.reviewer,
+                    "state": args.state,
+                    "added": True,
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -553,8 +534,21 @@ def cmd_post_review(args: argparse.Namespace) -> int:
         force_auth_prefix=True,
         payload={"message": args.message},
     )
-    print_system(target)
-    print("审查已发布")
+    print(
+        json.dumps(
+            {
+                "system": target.system_name,
+                "data": {
+                    "change_id": args.change_id,
+                    "revision": args.revision,
+                    "message": args.message,
+                    "posted": True,
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -570,8 +564,22 @@ def cmd_create_change(args: argparse.Namespace) -> int:
         payload={"project": args.project, "branch": args.branch, "subject": args.subject},
     )
     change_id = result.get("id") if isinstance(result, dict) else None
-    print_system(target)
-    print(f"创建成功: {change_id or args.subject}")
+    print(
+        json.dumps(
+            {
+                "system": target.system_name,
+                "data": {
+                    "project": args.project,
+                    "branch": args.branch,
+                    "subject": args.subject,
+                    "id": change_id,
+                    "created": True,
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

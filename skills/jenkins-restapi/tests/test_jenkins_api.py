@@ -367,9 +367,12 @@ class TestCmdListJobs:
             rc = jenkins_api.cmd_list_jobs(args)
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Found 2 jobs" in out
-        assert "job-a" in out and "job-b" in out
-        assert "[blue]" in out and "[red]" in out
+        payload = json.loads(out)
+        jobs = payload["data"]["jobs"]
+        assert len(jobs) == 2
+        assert [j["name"] for j in jobs] == ["job-a", "job-b"]
+        assert [j["color"] for j in jobs] == ["blue", "red"]
+        assert [j["url"] for j in jobs] == ["http://j/job-a", "http://j/job-b"]
 
     def test_no_jobs_key(self, capsys):
         with contextlib.ExitStack() as stack:
@@ -380,7 +383,7 @@ class TestCmdListJobs:
             rc = jenkins_api.cmd_list_jobs(args)
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Found 0 jobs" in out
+        assert json.loads(out)["data"]["jobs"] == []
 
     def test_non_dict_response(self, capsys):
         with contextlib.ExitStack() as stack:
@@ -390,7 +393,7 @@ class TestCmdListJobs:
             args = mock.MagicMock(jenkins=None, user=None, system=None)
             rc = jenkins_api.cmd_list_jobs(args)
         assert rc == 0
-        assert "Found 0 jobs" in capsys.readouterr().out
+        assert json.loads(capsys.readouterr().out)["data"]["jobs"] == []
 
     def test_job_missing_fields(self, capsys):
         with contextlib.ExitStack() as stack:
@@ -400,8 +403,9 @@ class TestCmdListJobs:
             args = mock.MagicMock(jenkins=None, user=None, system=None)
             jenkins_api.cmd_list_jobs(args)
         out = capsys.readouterr().out
-        assert "[unknown]" in out
-        assert "N/A" in out
+        job = json.loads(out)["data"]["jobs"][0]
+        assert job["color"] == "unknown"
+        assert job["name"] == "N/A"
 
 
 class TestCmdGetJob:
@@ -453,19 +457,36 @@ class TestCmdGetBuildInfo:
 
 
 class TestCmdGetConsoleLog:
-    def test_get_console_log(self, capsys):
+    def test_get_console_log_json(self, capsys):
         with contextlib.ExitStack() as stack:
             stack.enter_context(_mock_target_patch())
             rt = stack.enter_context(mock.patch("jenkins_api.request_text"))
             rt.return_value = "line1\nline2\n"
-            args = mock.MagicMock(job="job-a", number="3", jenkins=None, user=None, system=None)
+            args = mock.MagicMock(
+                job="job-a", number="3", raw=False, jenkins=None, user=None, system=None
+            )
             rc = jenkins_api.cmd_get_console_log(args)
         out = capsys.readouterr().out
         assert rc == 0
-        assert "line1" in out and "line2" in out
+        payload = json.loads(out)
+        assert payload["data"]["log"] == "line1\nline2\n"
+        assert payload["data"]["job"] == "job-a"
+        assert payload["data"]["number"] == "3"
         args_called, _ = rt.call_args
         assert "/job/job-a/3/consoleText" in args_called[2]
         assert rt.call_args.kwargs == {}
+
+    def test_get_console_log_raw(self, capsys):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rt = stack.enter_context(mock.patch("jenkins_api.request_text"))
+            rt.return_value = "line1\nline2\n"
+            args = mock.MagicMock(
+                job="job-a", number="3", raw=True, jenkins=None, user=None, system=None
+            )
+            rc = jenkins_api.cmd_get_console_log(args)
+        assert rc == 0
+        assert capsys.readouterr().out == "line1\nline2\n"
 
 
 # ===================================================================
@@ -515,7 +536,7 @@ class TestCmdListBuilds:
         defaults.update(overrides)
         return mock.MagicMock(**defaults)
 
-    def test_emits_pure_json_array(self, capsys):
+    def test_emits_json_envelope(self, capsys):
         builds = [
             {
                 "number": 3,
@@ -539,7 +560,7 @@ class TestCmdListBuilds:
             rc = jenkins_api.cmd_list_builds(self._args())
         out = capsys.readouterr().out
         assert rc == 0
-        parsed = json.loads(out)
+        parsed = json.loads(out)["data"]
         assert isinstance(parsed, list)
         assert len(parsed) == 2
         assert parsed[0]["number"] == 3
@@ -576,7 +597,7 @@ class TestCmdListBuilds:
                     ]
                 }
                 rc = jenkins_api.cmd_list_builds(self._args(since_hours=24))
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = json.loads(capsys.readouterr().out)["data"]
         assert rc == 0
         assert [b["number"] for b in parsed] == [5]
 
@@ -591,7 +612,7 @@ class TestCmdListBuilds:
                 }
                 rc = jenkins_api.cmd_list_builds(self._args(since_hours=0))
         assert rc == 0
-        assert json.loads(capsys.readouterr().out) == []
+        assert json.loads(capsys.readouterr().out)["data"] == []
 
     def test_build_without_timestamp_dropped_when_filtering(self, capsys):
         with mock.patch("jenkins_api.time.time", return_value=1_700_000_000):
@@ -609,7 +630,7 @@ class TestCmdListBuilds:
                     ]
                 }
                 rc = jenkins_api.cmd_list_builds(self._args(since_hours=24))
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = json.loads(capsys.readouterr().out)["data"]
         assert rc == 0
         assert [b["number"] for b in parsed] == [2]
 
@@ -626,7 +647,7 @@ class TestCmdListBuilds:
                     ]
                 }
                 rc = jenkins_api.cmd_list_builds(self._args(since_hours=24, result="!SUCCESS"))
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = json.loads(capsys.readouterr().out)["data"]
         assert rc == 0
         assert [b["number"] for b in parsed] == [2]
 
@@ -642,7 +663,7 @@ class TestCmdListBuilds:
                     ]
                 }
                 rc = jenkins_api.cmd_list_builds(self._args(since_hours=24, result="ABORTED"))
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = json.loads(capsys.readouterr().out)["data"]
         assert rc == 0
         assert [b["number"] for b in parsed] == [2]
 
@@ -653,7 +674,7 @@ class TestCmdListBuilds:
             rj.return_value = []
             rc = jenkins_api.cmd_list_builds(self._args())
         assert rc == 0
-        assert json.loads(capsys.readouterr().out) == []
+        assert json.loads(capsys.readouterr().out)["data"] == []
 
     def test_non_dict_build_entry_skipped(self, capsys):
         with mock.patch("jenkins_api.time.time", return_value=1_700_000_000):
@@ -667,7 +688,7 @@ class TestCmdListBuilds:
                     ]
                 }
                 rc = jenkins_api.cmd_list_builds(self._args(since_hours=24))
-        parsed = json.loads(capsys.readouterr().out)
+        parsed = json.loads(capsys.readouterr().out)["data"]
         assert rc == 0
         assert [b["number"] for b in parsed] == [9]
 
@@ -682,7 +703,8 @@ class TestCmdBuildJob:
             rc = jenkins_api.cmd_build_job(args)
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Triggered build for job: job-a" in out
+        payload = json.loads(out)
+        assert payload["data"] == {"job": "job-a", "action": "triggered"}
         args_called, kwargs = rt.call_args
         assert "/job/job-a/build" in args_called[2]
         assert kwargs["body"] is None
@@ -704,8 +726,10 @@ class TestCmdBuildJob:
             rc = jenkins_api.cmd_build_job(args)
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Triggered build for job: job-a" in out
-        assert "Queued" in out
+        payload = json.loads(out)
+        assert payload["data"]["job"] == "job-a"
+        assert payload["data"]["action"] == "triggered"
+        assert payload["data"]["response"] == "Queued"
         args_called, kwargs = rt.call_args
         assert "/job/job-a/buildWithParameters" in args_called[2]
         assert kwargs["body"] == b"BRANCH=main&DEBUG=true"
@@ -736,7 +760,7 @@ class TestCmdDisableJob:
             rc = jenkins_api.cmd_disable_job(args)
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Disabled job: job-a" in out
+        assert json.loads(out)["data"] == {"job": "job-a", "action": "disabled"}
         args_called, kwargs = rt.call_args
         assert "/job/job-a/disable" in args_called[2]
         assert kwargs["include_crumb"] is True
@@ -752,7 +776,7 @@ class TestCmdEnableJob:
             rc = jenkins_api.cmd_enable_job(args)
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Enabled job: job-a" in out
+        assert json.loads(out)["data"] == {"job": "job-a", "action": "enabled"}
         args_called, kwargs = rt.call_args
         assert "/job/job-a/enable" in args_called[2]
         assert kwargs["include_crumb"] is True
@@ -768,7 +792,11 @@ class TestCmdStopBuild:
             rc = jenkins_api.cmd_stop_build(args)
         out = capsys.readouterr().out
         assert rc == 0
-        assert "Requested stop for job-a build 7" in out
+        assert json.loads(out)["data"] == {
+            "job": "job-a",
+            "number": "7",
+            "action": "stopped",
+        }
         args_called, kwargs = rt.call_args
         assert "/job/job-a/7/stop" in args_called[2]
         assert kwargs["include_crumb"] is True
@@ -888,10 +916,12 @@ class TestMain:
         with mock.patch.object(jenkins_api, "build_parser") as bp:
             bp.return_value.parse_args.return_value = mock.MagicMock(handler=handler)
             rc = jenkins_api.main()
-        out = capsys.readouterr().out
+        captured = capsys.readouterr()
         assert rc == 1
-        assert "boom" in out
-        assert "500" in out
+        assert captured.out == ""  # stdout 保持空，错误走 stderr
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "boom"
+        assert payload["error"]["status_code"] == 500
 
     def test_main_invokes_real_handler(self, capsys):
         # End-to-end via the real parser, with _target + urlopen mocked.
@@ -905,7 +935,9 @@ class TestMain:
             )
             rc = jenkins_api.main()
         assert rc == 0
-        assert "Found 1 jobs" in capsys.readouterr().out
+        payload = json.loads(capsys.readouterr().out)
+        assert len(payload["data"]["jobs"]) == 1
+        assert payload["data"]["jobs"][0]["name"] == "a"
 
     def test_main_jenkins_error_via_real_path(self, capsys):
         # Real path that raises JenkinsError (HTTPError -> JenkinsError) and is
@@ -918,5 +950,7 @@ class TestMain:
             m.side_effect = _http_error(404, b"nope")
             rc = jenkins_api.main()
         assert rc == 1
-        out = capsys.readouterr().out
-        assert "404" in out
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        payload = json.loads(captured.err)
+        assert payload["error"]["status_code"] == 404

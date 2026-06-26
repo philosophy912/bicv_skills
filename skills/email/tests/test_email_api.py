@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import email
 import email.utils
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -1692,4 +1693,6 @@ class TestMain:
         rc = email_api.print_error(ServiceError("boom"))
         assert rc == 1
         err = capsys.readouterr().err
-        assert "Error: boom" in err
+        payload = json.loads(err)
+        assert payload["error"]["message"] == "boom"
+        assert payload["error"]["status_code"] is None

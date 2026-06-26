@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -162,7 +163,11 @@ def get_connection(
 
 
 def format_results(columns: list[str], rows: list[tuple[Any, ...]]) -> None:
-    """Format and print query results as a table."""
+    """Format and print query results as a table.
+
+    目前 execute_query 走 JSON 信封路径，不再调用本函数；保留供未来
+    ``--format human`` 表格输出使用。
+    """
     if not columns:
         return
 
@@ -191,8 +196,14 @@ def execute_query(
     connection: Any,
     sql: str,
     operation: str,
-) -> None:
-    """Execute a SQL query and print results."""
+) -> dict[str, Any]:
+    """Execute a SQL query and return a structured result dict.
+
+    select -> ``{"columns", "rows", "total", "truncated"}``
+    insert/update -> ``{"affected_rows"}``
+
+    由 main() 包成 ``{"system", "data": <本 dict>}`` 信封输出到 stdout。
+    """
     is_valid, blocked_keyword = validate_sql(sql)
     if not is_valid:
         raise ServiceError(
@@ -218,17 +229,22 @@ def execute_query(
                 rows.extend(batch)
                 total += len(batch)
 
+            truncated = False
             if total > 10000:
-                format_results(columns, rows[:10000])
-                print(f"\n... showing first 10000 of {total} rows (truncated for display)")
-            else:
-                format_results(columns, rows)
-                print(f"\n{total} row(s) returned")
+                rows = rows[:10000]
+                truncated = True
+
+            return {
+                "columns": columns,
+                "rows": [list(r) for r in rows],
+                "total": total,
+                "truncated": truncated,
+            }
 
         else:
             cursor.execute(sql)
             connection.commit()
-            print(f"Query executed successfully. {cursor.rowcount} row(s) affected.")
+            return {"affected_rows": cursor.rowcount}
 
     except MySQLError as exc:
         connection.rollback()
@@ -289,9 +305,14 @@ def main() -> int:
     connection = get_connection(config, args.database)
 
     try:
-        if config.system_name:
-            print(f"System: {config.system_name}")
-        execute_query(connection, sql, args.operation)
+        result = execute_query(connection, sql, args.operation)
+        print(
+            json.dumps(
+                {"system": config.system_name, "data": result},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
         return 0
     finally:
         if connection.is_connected():

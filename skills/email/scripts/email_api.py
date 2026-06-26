@@ -1090,7 +1090,18 @@ def cmd_mark_read(args) -> int:
     finally:
         _safe_logout(server)
 
-    print(json.dumps({"status": "ok", "uid": args.uid, "marked": action}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "system": config.system_name,
+                "status": "ok",
+                "uid": args.uid,
+                "marked": action,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -1196,7 +1207,20 @@ def _print_format(fmt: str, data: dict, table_renderer) -> None:
 
 
 def print_error(err: ServiceError) -> int:
-    print(f"Error: {err}", file=sys.stderr)
+    """以 JSON 结构把错误输出到 stderr，退出码 1。"""
+    print(
+        json.dumps(
+            {
+                "error": {
+                    "message": err.message,
+                    "status_code": err.status_code,
+                    "details": err.response_text or None,
+                }
+            },
+            ensure_ascii=False,
+        ),
+        file=sys.stderr,
+    )
     return 1
 
 

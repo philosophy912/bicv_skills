@@ -992,16 +992,20 @@ class TestPrintError:
     def test_print_error_with_status(self, capsys):
         err = ServiceError("请求失败", status_code=404)
         rc = zentao_api.print_error(err)
-        out = capsys.readouterr().out
-        assert "请求失败" in out
-        assert "404" in out
+        captured = capsys.readouterr()
+        assert captured.out == ""  # stdout 保持空，错误走 stderr
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "请求失败"
+        assert payload["error"]["status_code"] == 404
         assert rc == 1
 
     def test_print_error_without_status(self, capsys):
         err = ServiceError("未知错误")
         rc = zentao_api.print_error(err)
-        out = capsys.readouterr().out
-        assert "未知错误" in out
+        captured = capsys.readouterr()
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "未知错误"
+        assert payload["error"]["status_code"] is None
         assert rc == 1
 
     def test_print_error_returns_1(self):
@@ -1019,35 +1023,25 @@ class TestPrintJsonResult:
         target = zentao_api.ZentaoTarget(url="http://z.com", auth=None)
         rc = zentao_api.print_json_result(target, {"key": "value"}, "Result:")
         out = capsys.readouterr().out
-        assert "Result:" in out
-        assert '"key"' in out
+        payload = json.loads(out)
+        assert payload == {"system": None, "data": {"key": "value"}}
+        assert "Result:" not in out  # heading 不再打印
         assert rc == 0
 
     def test_prints_heading(self, capsys):
         target = zentao_api.ZentaoTarget(url="http://z.com", auth=None, system_name="test")
         zentao_api.print_json_result(target, {}, "Heading:")
         out = capsys.readouterr().out
-        assert "Heading:" in out
+        payload = json.loads(out)
+        assert payload == {"system": "test", "data": {}}
+        assert "Heading:" not in out
 
     def test_prints_system_name(self, capsys):
         target = zentao_api.ZentaoTarget(url="http://z.com", auth=None, system_name="my-system")
         zentao_api.print_json_result(target, {})
         out = capsys.readouterr().out
-        assert "my-system" in out
-
-
-class TestPrintSystem:
-    def test_prints_system_name_if_present(self, capsys):
-        target = zentao_api.ZentaoTarget(url="http://z.com", auth=None, system_name="prod")
-        zentao_api.print_system(target)
-        out = capsys.readouterr().out
-        assert "prod" in out
-
-    def test_nothing_printed_if_no_system_name(self, capsys):
-        target = zentao_api.ZentaoTarget(url="http://z.com", auth=None)
-        zentao_api.print_system(target)
-        out = capsys.readouterr().out
-        assert out == ""
+        payload = json.loads(out)
+        assert payload["system"] == "my-system"
 
 
 # ===================================================================

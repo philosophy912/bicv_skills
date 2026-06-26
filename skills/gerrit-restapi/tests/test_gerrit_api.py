@@ -257,24 +257,30 @@ class TestPrintError:
     def test_with_response_text(self, capsys):
         err = ServiceError("请求失败", status_code=400, response_text=")]}'" + "bad")
         rc = gerrit_api.print_error(err)
-        out = capsys.readouterr().out
-        assert "请求失败" in out
-        assert "400" in out
-        assert "bad" in out
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "请求失败"
+        assert payload["error"]["status_code"] == 400
+        assert payload["error"]["details"] == "bad"  # XSSI 前缀已剥离
         assert rc == 1
 
     def test_without_response_text(self, capsys):
         err = ServiceError("出错了")
         rc = gerrit_api.print_error(err)
-        out = capsys.readouterr().out
-        assert "出错了" in out
+        captured = capsys.readouterr()
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "出错了"
+        assert payload["error"]["details"] is None
         assert rc == 1
 
     def test_empty_response_text_not_printed(self, capsys):
         err = ServiceError("err", response_text="")
         rc = gerrit_api.print_error(err)
-        out = capsys.readouterr().out
-        assert "err" in out
+        captured = capsys.readouterr()
+        payload = json.loads(captured.err)
+        assert payload["error"]["message"] == "err"
+        assert payload["error"]["details"] is None  # 空响应不进 details
         assert rc == 1
 
 
@@ -304,7 +310,7 @@ class TestCmdQueryChanges:
             args = mock.MagicMock(query="status:open", limit=25, json=False, option=[])
             rc = gerrit_api.cmd_query_changes(args)
             out = capsys.readouterr().out
-            assert "没有找到匹配的变更" in out
+            assert json.loads(out)["data"] == []
             assert rc == 0
 
     def test_with_results(self, capsys):
@@ -316,9 +322,8 @@ class TestCmdQueryChanges:
             args = mock.MagicMock(query="status:open", limit=25, json=False, option=[])
             rc = gerrit_api.cmd_query_changes(args)
             out = capsys.readouterr().out
-            assert "2 个变更" in out
-            assert "1: first" in out
-            assert "[WIP] second" in out
+            payload = json.loads(out)
+            assert payload["data"] == changes
             assert rc == 0
             _, kwargs = rj.call_args
             assert kwargs["params"]["q"] == "status:open"
@@ -331,7 +336,7 @@ class TestCmdQueryChanges:
             rc = gerrit_api.cmd_query_changes(args)
             out = capsys.readouterr().out
             assert rc == 0
-            assert json.loads(out) == changes  # 纯 JSON，可直接解析
+            assert json.loads(out)["data"] == changes  # 信封内即原始 changes 列表
 
     def test_json_with_options(self, capsys):
         changes = [{"_number": 1, "subject": "first"}]
@@ -350,7 +355,7 @@ class TestCmdQueryChanges:
             rc = gerrit_api.cmd_query_changes(args)
             out = capsys.readouterr().out
             assert rc == 0
-            assert "1 个变更" in out  # 仍走文本输出
+            assert json.loads(out)["data"] == changes  # --json 与否默认都是 JSON 信封
             _, kwargs = rj.call_args
             assert kwargs["params"]["o"] == ["MESSAGES"]
 
@@ -402,29 +407,17 @@ class TestCmdGetChangeDetails:
             assert "proj%7Emain%7EI1" in path
 
     def test_missing_optional_fields(self, capsys):
+        # 字段缺失时仍原样输出原始 detail，不再补 "N/A"
         details = {"_number": 3, "subject": "s", "status": "NEW"}
         with _mock_target_patch(), patched_request_json(return_value=details):
             args = mock.MagicMock(change_id="x~y~z")
             rc = gerrit_api.cmd_get_change_details(args)
             out = capsys.readouterr().out
-            assert "N/A" in out
             assert rc == 0
-
-    def test_owner_name_fallbacks(self, capsys):
-        # email missing -> name missing -> username -> N/A
-        for owner, expected in [
-            ({"name": "Namer"}, "Namer"),
-            ({"username": "us3r"}, "us3r"),
-            ({}, "N/A"),
-        ]:
-            details = {"_number": 1, "subject": "s", "status": "X", "owner": owner}
-            with _mock_target_patch(), patched_request_json(return_value=details):
-                args = mock.MagicMock(change_id="a~b~c")
-                gerrit_api.cmd_get_change_details(args)
-                out = capsys.readouterr().out
-                assert expected in out
+            assert json.loads(out)["data"] == details
 
     def test_label_rejected_fallback(self, capsys):
+        # 原始 detail 透传：rejected 投票人信息原样保留在 data 中
         details = {
             "_number": 1,
             "subject": "s",
@@ -435,20 +428,7 @@ class TestCmdGetChangeDetails:
             args = mock.MagicMock(change_id="a~b~c")
             gerrit_api.cmd_get_change_details(args)
             out = capsys.readouterr().out
-            assert "Rex" in out
-
-    def test_label_no_summary(self, capsys):
-        details = {
-            "_number": 1,
-            "subject": "s",
-            "status": "X",
-            "labels": {"V": {}},
-        }
-        with _mock_target_patch(), patched_request_json(return_value=details):
-            args = mock.MagicMock(change_id="a~b~c")
-            gerrit_api.cmd_get_change_details(args)
-            out = capsys.readouterr().out
-            assert "无汇总" in out
+            assert json.loads(out)["data"]["labels"]["V"]["rejected"]["name"] == "Rex"
 
     def test_message_empty_message_field(self, capsys):
         details = {
@@ -991,7 +971,9 @@ class TestCmdPostReview:
             args = mock.MagicMock(change_id="a~b~c", revision="current", message="lgtm")
             rc = gerrit_api.cmd_post_review(args)
             out = capsys.readouterr().out
-            assert "审查已发布" in out
+            payload = json.loads(out)
+            assert payload["data"]["posted"] is True
+            assert payload["data"]["message"] == "lgtm"
             assert rc == 0
             _, kwargs = rj.call_args
             assert kwargs["force_auth_prefix"] is True
@@ -1239,11 +1221,13 @@ class TestMain:
         with mock.patch("sys.argv", ["gerrit_api.py", "query-changes", "--query", "x"]):
             with mock.patch("gerrit_api.cmd_query_changes", side_effect=handler):
                 rc = gerrit_api.main()
-                out = capsys.readouterr().out
+                captured = capsys.readouterr()
                 assert rc == 1
-                assert "boom" in out
-                assert "500" in out
-                assert "body" in out
+                assert captured.out == ""
+                payload = json.loads(captured.err)
+                assert payload["error"]["message"] == "boom"
+                assert payload["error"]["status_code"] == 500
+                assert payload["error"]["details"] == "body"
 
     def test_main_invokes_real_handler_through_target(self):
         # End-to-end-ish: real handler, but mock _target + request_json
