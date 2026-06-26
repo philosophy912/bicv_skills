@@ -161,6 +161,26 @@ def _in_clause(values: list[str]) -> str:
     return f"({escaped})"
 
 
+def _exclude_inactive_project_clause(
+    system_type: str, instance_id: int, alias: str, name_col: str
+) -> str:
+    """NOT EXISTS 子句：排除 project 表中 is_active=0 的停用项目。
+
+    关联键用 project_name（external_project_id 与缺陷的 project id 非同一套 id），
+    库内 project_name 与 projectName/project_name 存在 collation 混用，需统一。
+    未收录在 project 表的项目不匹配子查询，故保留（按在研处理，不漏）。
+    """
+    return (
+        " AND NOT EXISTS ("
+        " SELECT 1 FROM project p"
+        f" WHERE p.system_type = '{system_type}'"
+        f" AND p.instance_id = {instance_id}"
+        " AND TRIM(p.project_name) COLLATE utf8mb4_unicode_ci"
+        f" = TRIM({alias}.{name_col}) COLLATE utf8mb4_unicode_ci"
+        " AND p.is_active = 0)"
+    )
+
+
 def _execute_query(conn: Any, sql: str) -> list[dict[str, Any]]:
     """执行 SELECT 查询，返回 dict 列表。"""
     cursor = conn.cursor(dictionary=True)
@@ -330,7 +350,8 @@ def cmd_overdue(conn: Any, config: dict[str, Any], args: argparse.Namespace) -> 
             f"   AND TRIM(b.assignedTo) IN {user_in}"
             f"   AND DATEDIFF(NOW(), COALESCE(last_act.action_date, b.openedDate))"
             f"     > {overdue_days}"
-            f" ORDER BY last_act.action_date ASC"
+            + _exclude_inactive_project_clause("zentao", zt_instance, "b", "projectName")
+            + " ORDER BY last_act.action_date ASC"
         )
         zt_rows = _execute_query(conn, zt_sql)
 
@@ -376,7 +397,8 @@ def cmd_overdue(conn: Any, config: dict[str, Any], args: argparse.Namespace) -> 
             f"   AND TRIM(ri.assigned_to_name) IN {user_in_rm}"
             f"   AND DATEDIFF(NOW(), COALESCE(last_j.created_on, ri.created_on))"
             f"     > {overdue_days}"
-            f" ORDER BY last_j.created_on ASC"
+            + _exclude_inactive_project_clause("redmine", rm_instance, "ri", "project_name")
+            + " ORDER BY last_j.created_on ASC"
         )
         rm_rows = _execute_query(conn, rm_sql)
 

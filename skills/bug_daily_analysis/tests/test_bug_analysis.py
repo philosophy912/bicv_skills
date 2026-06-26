@@ -364,6 +364,26 @@ class TestInClause:
 
 
 # ---------------------------------------------------------------------------
+# _exclude_inactive_project_clause
+# ===========================================================================
+
+
+class TestExcludeInactiveProjectClause:
+    def test_zentao_clause(self):
+        s = bug_analysis._exclude_inactive_project_clause("zentao", 1, "b", "projectName")
+        assert "NOT EXISTS" in s
+        assert "p.system_type = 'zentao'" in s
+        assert "p.instance_id = 1" in s
+        assert "TRIM(b.projectName)" in s
+        assert "p.is_active = 0" in s
+
+    def test_redmine_clause_uses_project_name_col(self):
+        s = bug_analysis._exclude_inactive_project_clause("redmine", 2, "ri", "project_name")
+        assert "p.system_type = 'redmine'" in s
+        assert "TRIM(ri.project_name)" in s
+
+
+# ---------------------------------------------------------------------------
 # _execute_query
 # ===========================================================================
 
@@ -660,6 +680,19 @@ class TestCmdOverdue:
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)
         assert payload["zentao"]["bugs"][0]["days_since_action"] == 16
+
+    def test_overdue_sql_excludes_inactive_projects(self):
+        config = _valid_config()
+        conn, cursor = _mock_conn(rows_per_query=[[], []])
+        bug_analysis.cmd_overdue(conn, config, mock.Mock())
+        calls = cursor.execute.call_args_list
+        zt_sql = calls[0][0][0]
+        assert "NOT EXISTS" in zt_sql
+        assert "is_active = 0" in zt_sql
+        assert "TRIM(b.projectName)" in zt_sql
+        rm_sql = calls[1][0][0]
+        assert "NOT EXISTS" in rm_sql
+        assert "TRIM(ri.project_name)" in rm_sql
 
 
 # ---------------------------------------------------------------------------

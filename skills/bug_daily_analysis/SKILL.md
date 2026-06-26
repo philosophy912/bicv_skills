@@ -19,6 +19,7 @@ description: |
 - **超期判定（当前型）**：缺陷当前指派给用户组成员，且用户组**最后一条 action（含评论）距今 > overdue_days 天**；用户组曾碰过就不算（既往不咎）。
   - 禅道 action 取 `zentao_bug_action`（`actor`/`date`）；Redmine 取 `redmine_issue_journal`（`user_name`/`created_on`）。
   - 无用户组 action 时，用缺陷创建时间作 fallback。
+- **停用项目过滤（仅 overdue）**：排除 `project` 表中 `is_active=0` 的停用项目（陈年缺陷不再算超期噪音）；按 `project_name` 关联（`external_project_id` 与缺陷 project id 非同一套 id，库内 collation 混用需统一），`project` 表未收录的项目按在研保留（不漏）。submissions 不过滤——停用项目无新缺陷。实测：273 条超期过滤掉 142 条（3 个停用项目）→ 131 条。
 - **时间窗口**：由 agent 从用户 prompt 解析（如「上周」「6/1~6/25」），通过 `--since`/`--until` 传入脚本；未指定时默认近 7 天。
 - **依赖**：查询脚本 `scripts/bug_analysis.py`（DB 连接复用 `~/.bicv/mysql.json`，system=ticket）；渲染脚本 `scripts/render_charts.py`（依赖 matplotlib，吃 JSON 出 PNG，输出目录走 `~/.bicv/common.json`）。
 
