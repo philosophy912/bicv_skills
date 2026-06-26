@@ -360,16 +360,21 @@ def render_submissions(
 
 
 def _overdue_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """合并禅道/Redmine 超期明细为统一行结构，按超期天数降序。"""
+    """合并禅道/Redmine 超期明细为统一行结构（含缺陷 ID），按超期天数降序。
+
+    缺陷 ID 带系统前缀（Z- 禅道 / R- Redmine），避免两系统数字 id 混淆。
+    """
     specs = [
-        ("zentao", "projectName", "module", "assignedTo"),
-        ("redmine", "project_name", "subject", "assigned_to_name"),
+        ("zentao", "Z", "id", "projectName", "module", "assignedTo"),
+        ("redmine", "R", "issue_id", "project_name", "subject", "assigned_to_name"),
     ]
     rows: list[dict[str, Any]] = []
-    for sys_key, proj_key, mod_key, assign_key in specs:
+    for sys_key, prefix, id_key, proj_key, mod_key, assign_key in specs:
         section = data.get(sys_key) or {}
         items = section.get("bugs") or section.get("issues") or []
         for item in items:
+            raw_id = item.get(id_key, "")
+            bug_id = f"{prefix}-{raw_id}" if raw_id not in ("", None) else ""
             days = item.get("days_since_action", "")
             try:
                 days_val = int(days)
@@ -377,6 +382,7 @@ def _overdue_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
                 days_val = 0
             rows.append(
                 {
+                    "id": bug_id,
                     "project": item.get(proj_key, ""),
                     "module": item.get(mod_key, ""),
                     "assignee": item.get(assign_key, ""),
@@ -410,6 +416,7 @@ def render_overdue(
         charts["overdue_detail"] = _emit_table(
             rows,
             [
+                ("缺陷ID", "id"),
                 ("项目", "project"),
                 ("模块/主题", "module"),
                 ("指派人", "assignee"),

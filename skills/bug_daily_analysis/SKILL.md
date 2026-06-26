@@ -173,7 +173,7 @@ python3 scripts/render_charts.py --submissions sub.json --out /some/dir
 - **4 类图**（按数据有无按需生成；禅道 + Redmine 合并统计）：
   - `submissions_by_user` / `submissions_by_project`：横向条形图，按数降序，最多者居顶。
   - `overdue_by_user`：超期按指派人计数（横向条形图）。
-  - `overdue_detail`：超期明细表格图（项目 / 模块 / 指派人 / 超期天数，按天数降序）。
+  - `overdue_detail`：超期明细表格图（**缺陷ID** / 项目 / 模块 / 指派人 / 超期天数，按天数降序）；缺陷ID 带 `Z-`（禅道）/ `R-`（Redmine）前缀。
 - **不截断**：条形图超 25 条、表格超 30 行自动 **分页** 成多张（`_p1/_p2…`），数据一条不丢。
 - **输出目录**：默认 `~/.bicv/common.json` 的 `output_root/bug_daily_analysis`（可在 `common.json` 的 `skills` 里映射别名）；`--out` 可覆盖。
 - 返回 JSON 信封：`{"generated_at", "output_dir", "charts": {<板块>: [<png 路径>…]}}`。
@@ -181,6 +181,25 @@ python3 scripts/render_charts.py --submissions sub.json --out /some/dir
 ### 中文字体
 
 优先探测系统已装 CJK 字体（PingFang / Noto / 思源 / 雅黑 / SimHei …）；全找不到时回退到 `assets/fonts/` 下的字体文件（见该目录 README）；再找不到则报错指引，不静默出豆腐块。仓库默认不内置字体二进制。
+
+## Markdown 报告（render_report.py）
+
+把 `bug_analysis.py` 的 JSON 渲染成**表格形式**的 Markdown 报告，便于一眼定位问题。只吃 JSON、不连库、不依赖 matplotlib，可独立运行。
+
+### 用法
+
+```bash
+python3 scripts/render_report.py --submissions sub.json --overdue ovd.json
+```
+
+### 产出
+
+- 落盘 `report_<YYYYMMDD>.md` 到输出目录（同 `render_charts.py`，走 `common.json`）。
+- 表格内容：
+  - **一、本周提交**：按提交人、按项目（数量 + 占比，降序）。
+  - **二、超期未处理**：按指派人计数 + 超期明细（**缺陷ID** / 项目 / 模块 / 指派人 / 超期天数，按天数降序）。
+- 缺陷ID 带 `Z-`（禅道）/ `R-`（Redmine）前缀，跨系统不撞号、可定位。
+- 返回 JSON 信封：`{"generated_at", "report_path"}`。
 
 ## agent 编排流程
 
@@ -190,9 +209,10 @@ python3 scripts/render_charts.py --submissions sub.json --out /some/dir
 1. agent 从用户 prompt 解析时间窗口（如「上周」→ since/until）。
 2. 调 `submissions --since ... --until ...`，stdout 存为 `sub.json`。
 3. 调 `overdue`，stdout 存为 `ovd.json`。
-4. 调 `render_charts.py --submissions sub.json --overdue ovd.json` 生成 PNG（见上「图片渲染」）。
-5. 读两份 JSON + 图片清单，汇总成终端 Markdown 报告 + 落盘 `report.md`（可内嵌图片路径）。
-6. 报表重点：按人/按项目汇总提交数；超期明细逐一列出（模块、指派人、天数）。
+4. 调 `render_charts.py --submissions sub.json --overdue ovd.json` 生成 PNG（见「图片渲染」）。
+5. 调 `render_report.py --submissions sub.json --overdue ovd.json` 生成 Markdown 表格报告 `report_<日期>.md`（见「Markdown 报告」）。
+6. 读两份 JSON + 图片/报告路径，在终端给用户汇总（可内嵌图片路径）。
+7. 报表重点：按人/按项目汇总提交数；超期明细逐一列出（缺陷ID、模块、指派人、天数）。
 
 ## 禁止
 

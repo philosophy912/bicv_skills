@@ -47,12 +47,14 @@ def _overdue_payload() -> dict:
             "by_user": {"郭礼香": 2},
             "bugs": [
                 {
+                    "id": 12345,
                     "projectName": "B30X-F09",
                     "module": "carlink",
                     "assignedTo": "郭礼香",
                     "days_since_action": 16,
                 },
                 {
+                    "id": 12346,
                     "projectName": "N53TB",
                     "module": "AVM",
                     "assignedTo": "郭礼香",
@@ -117,6 +119,7 @@ class TestOverdueRows:
         rows = rc._overdue_rows(_overdue_payload())
         assert [r["days"] for r in rows] == [16, 10]
         assert rows[0]["module"] == "carlink"
+        assert rows[0]["id"] == "Z-12345"
 
     def test_non_numeric_days_become_zero(self):
         data = {
@@ -138,6 +141,7 @@ class TestOverdueRows:
             "redmine": {
                 "issues": [
                     {
+                        "issue_id": 99,
                         "project_name": "P",
                         "subject": "主题",
                         "assigned_to_name": "A",
@@ -146,7 +150,9 @@ class TestOverdueRows:
                 ]
             }
         }
-        assert rc._overdue_rows(data)[0]["module"] == "主题"
+        rows = rc._overdue_rows(data)
+        assert rows[0]["module"] == "主题"
+        assert rows[0]["id"] == "R-99"
 
 
 # ---------------------------------------------------------------------------
