@@ -20,7 +20,7 @@ description: |
   - 禅道 action 取 `zentao_bug_action`（`actor`/`date`）；Redmine 取 `redmine_issue_journal`（`user_name`/`created_on`）。
   - 无用户组 action 时，用缺陷创建时间作 fallback。
 - **时间窗口**：由 agent 从用户 prompt 解析（如「上周」「6/1~6/25」），通过 `--since`/`--until` 传入脚本；未指定时默认近 7 天。
-- **依赖**：本 skill 自带脚本 `scripts/bug_analysis.py`；DB 连接复用 `~/.bicv/mysql.json`（system=ticket）。
+- **依赖**：查询脚本 `scripts/bug_analysis.py`（DB 连接复用 `~/.bicv/mysql.json`，system=ticket）；渲染脚本 `scripts/render_charts.py`（依赖 matplotlib，吃 JSON 出 PNG，输出目录走 `~/.bicv/common.json`）。
 
 ## 首次使用：配置引导
 
@@ -72,7 +72,23 @@ python3 skills/mysql/scripts/mysql_query.py select "SELECT 1" --system ticket
 
 ### 4. 确认输出目录
 
-复用 `~/.bicv/common.json`（与 gerrit/jenkins daily_analysis 共用）。
+渲染脚本 `render_charts.py` 的图片默认输出到 `~/.bicv/common.json` 配置的目录（与 gerrit/jenkins daily_analysis 共用同一份配置）。规则：
+
+- **`output_root`**（必填）：所有 skill 的输出根目录。
+- **`skills` 映射**（可选）：`skills["bug_daily_analysis"]` 指定本 skill 的子目录名；**未配置时默认回退到 `"bug_daily_analysis"`**。
+- 实际输出路径 = `output_root / <子目录>/`，脚本会自动创建。
+- `render_charts.py --out <dir>` 可临时覆盖（优先级最高）。
+
+示例 `~/.bicv/common.json`：
+
+```json
+{
+  "output_root": "/path/to/output",
+  "skills": {
+    "bug_daily_analysis": "bug_daily_analysis"
+  }
+}
+```
 
 ## 子命令
 
@@ -135,16 +151,47 @@ python3 scripts/bug_analysis.py overdue
 }
 ```
 
+## 图片渲染（render_charts.py）
+
+把 `bug_analysis.py` 的 JSON 输出渲染成 PNG 图表，**只吃 JSON、不连库**，职责与查询脚本分离。
+
+### 用法
+
+```bash
+# 先把两个子命令的输出存成文件
+python3 scripts/bug_analysis.py submissions --since 2026-06-22 --until 2026-06-26 > sub.json
+python3 scripts/bug_analysis.py overdue > ovd.json
+
+# 渲染成图片（可只传其中一个）
+python3 scripts/render_charts.py --submissions sub.json --overdue ovd.json
+python3 scripts/render_charts.py --submissions sub.json --out /some/dir
+```
+
+### 产出
+
+- **4 类图**（按数据有无按需生成；禅道 + Redmine 合并统计）：
+  - `submissions_by_user` / `submissions_by_project`：横向条形图，按数降序，最多者居顶。
+  - `overdue_by_user`：超期按指派人计数（横向条形图）。
+  - `overdue_detail`：超期明细表格图（项目 / 模块 / 指派人 / 超期天数，按天数降序）。
+- **不截断**：条形图超 25 条、表格超 30 行自动 **分页** 成多张（`_p1/_p2…`），数据一条不丢。
+- **输出目录**：默认 `~/.bicv/common.json` 的 `output_root/bug_daily_analysis`（可在 `common.json` 的 `skills` 里映射别名）；`--out` 可覆盖。
+- 返回 JSON 信封：`{"generated_at", "output_dir", "charts": {<板块>: [<png 路径>…]}}`。
+
+### 中文字体
+
+优先探测系统已装 CJK 字体（PingFang / Noto / 思源 / 雅黑 / SimHei …）；全找不到时回退到 `assets/fonts/` 下的字体文件（见该目录 README）；再找不到则报错指引，不静默出豆腐块。仓库默认不内置字体二进制。
+
 ## agent 编排流程
 
 脚本只提供原子数据查询（JSON 输出），**报告措辞和汇总由 agent 完成**。
 
 典型流程：
 1. agent 从用户 prompt 解析时间窗口（如「上周」→ since/until）。
-2. 调 `submissions --since ... --until ...` 获取提交数据。
-3. 调 `overdue` 获取超期数据。
-4. 读两份 JSON 输出，汇总成终端 Markdown 报告 + 落盘 `report.md`。
-5. 报表重点：按人/按项目汇总提交数；超期明细逐一列出（模块、指派人、天数）。
+2. 调 `submissions --since ... --until ...`，stdout 存为 `sub.json`。
+3. 调 `overdue`，stdout 存为 `ovd.json`。
+4. 调 `render_charts.py --submissions sub.json --overdue ovd.json` 生成 PNG（见上「图片渲染」）。
+5. 读两份 JSON + 图片清单，汇总成终端 Markdown 报告 + 落盘 `report.md`（可内嵌图片路径）。
+6. 报表重点：按人/按项目汇总提交数；超期明细逐一列出（模块、指派人、天数）。
 
 ## 禁止
 
