@@ -311,6 +311,21 @@ class TestRenderTable:
 # ===========================================================================
 
 
+class TestClearOldPages:
+    def test_removes_matching_old_files(self, tmp_path):
+        (tmp_path / "stem.png").write_text("old")
+        (tmp_path / "stem_p1.png").write_text("old")
+        (tmp_path / "stem_p2.png").write_text("old")
+        (tmp_path / "other.png").write_text("keep")
+        rc._clear_old_pages(tmp_path, "stem")
+        assert {p.name for p in tmp_path.iterdir()} == {"other.png"}
+
+    def test_no_match_is_noop(self, tmp_path):
+        (tmp_path / "other.png").write_text("x")
+        rc._clear_old_pages(tmp_path, "stem")  # 不应抛
+        assert (tmp_path / "other.png").exists()
+
+
 class TestEmitBars:
     def test_single_page_no_suffix(self, tmp_path):
         with mock.patch.object(rc, "render_bar", return_value=Path("x")) as m:
@@ -325,6 +340,15 @@ class TestEmitBars:
         assert len(paths) == 2
         assert paths[0].endswith("stem_p1.png") and paths[1].endswith("stem_p2.png")
         assert m.call_count == 2
+
+    def test_clears_old_pages_before_rendering(self, tmp_path):
+        (tmp_path / "stem_p1.png").write_text("old")
+        (tmp_path / "stem_p2.png").write_text("old")
+        with mock.patch.object(rc, "render_bar", return_value=Path("x")):
+            paths = rc._emit_bars({"a": 1}, "t", tmp_path, "stem", "f")
+        assert paths == [str(tmp_path / "stem.png")]
+        assert not (tmp_path / "stem_p1.png").exists()
+        assert not (tmp_path / "stem_p2.png").exists()
 
 
 class TestEmitTable:

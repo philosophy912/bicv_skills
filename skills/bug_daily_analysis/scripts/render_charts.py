@@ -283,6 +283,14 @@ def render_table(
 # ---------------------------------------------------------------------------
 
 
+def _clear_old_pages(out_dir: Path, stem: str) -> None:
+    """删除同 stem 的旧输出（stem.png 及 stem_p*.png），避免重新渲染页数变少时残留孤儿页。"""
+    for p in out_dir.glob(f"{stem}.png"):
+        p.unlink()
+    for p in out_dir.glob(f"{stem}_p*.png"):
+        p.unlink()
+
+
 def _emit_bars(
     counter: dict[str, int],
     title: str,
@@ -292,6 +300,7 @@ def _emit_bars(
     page_size: int = BAR_PAGE_SIZE,
 ) -> list[str]:
     """把一个计数分布排序、分页、逐页画条形图，返回生成的文件路径列表。"""
+    _clear_old_pages(out_dir, stem)
     sorted_items = sort_desc(counter)
     pages = paginate(sorted_items, page_size)
     paths: list[str] = []
@@ -315,6 +324,7 @@ def _emit_table(
     page_size: int = TABLE_PAGE_SIZE,
 ) -> list[str]:
     """把明细行分页、逐页画表格图，返回生成的文件路径列表。"""
+    _clear_old_pages(out_dir, stem)
     pages = paginate(rows, page_size)
     paths: list[str] = []
     total = len(pages)
