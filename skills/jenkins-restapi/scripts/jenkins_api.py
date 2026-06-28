@@ -325,6 +325,44 @@ def cmd_list_queue(args: argparse.Namespace) -> int:
     return print_json_result(target, request_json("GET", target, "/queue/api/json"))
 
 
+def cmd_list_nodes(args: argparse.Namespace) -> int:
+    target = _target(args)
+    tree_spec = (
+        "computer[displayName,offline,offlineCauseReason,temporarilyOffline,idle,numExecutors]"
+    )
+    data = request_json("GET", target, "/computer/api/json", params={"tree": tree_spec})
+    computers = data.get("computer", []) if isinstance(data, dict) else []
+    nodes = [
+        {
+            "name": c.get("displayName", "N/A"),
+            "offline": bool(c.get("offline", False)),
+            "temporarilyOffline": bool(c.get("temporarilyOffline", False)),
+            "idle": bool(c.get("idle", True)),
+            "numExecutors": c.get("numExecutors", 0),
+            "offlineCauseReason": c.get("offlineCauseReason", "") or "",
+        }
+        for c in computers
+        if isinstance(c, dict)
+    ]
+    offline_nodes = [n for n in nodes if n["offline"]]
+    shown = offline_nodes if args.offline else nodes
+    print(
+        json.dumps(
+            {
+                "system": target.system_name,
+                "data": {
+                    "total": len(nodes),
+                    "offlineCount": len(offline_nodes),
+                    "computers": shown,
+                },
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
 def cmd_disable_job(args: argparse.Namespace) -> int:
     target = _target(args)
     path = f"/{encode_job_segment(args.job)}/disable"
@@ -441,6 +479,18 @@ def build_parser() -> argparse.ArgumentParser:
     list_queue = subparsers.add_parser("list-queue", help="Inspect the Jenkins build queue")
     add_common_args(list_queue)
     list_queue.set_defaults(handler=cmd_list_queue)
+
+    list_nodes = subparsers.add_parser(
+        "list-nodes",
+        help="List Jenkins agent nodes (computers) with offline status",
+    )
+    add_common_args(list_nodes)
+    list_nodes.add_argument(
+        "--offline",
+        action="store_true",
+        help="Only show offline (lost) nodes",
+    )
+    list_nodes.set_defaults(handler=cmd_list_nodes)
 
     disable_job = subparsers.add_parser("disable-job", help="Disable a Jenkins job")
     add_common_args(disable_job)

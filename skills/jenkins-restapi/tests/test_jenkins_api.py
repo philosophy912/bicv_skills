@@ -408,6 +408,104 @@ class TestCmdListJobs:
         assert job["name"] == "N/A"
 
 
+class TestCmdListNodes:
+    def test_lists_all_nodes(self, capsys):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = {
+                "computer": [
+                    {"displayName": "Built-In Node", "offline": False, "numExecutors": 2},
+                    {
+                        "displayName": "bug-10",
+                        "offline": True,
+                        "offlineCauseReason": "Connection was broken",
+                        "temporarilyOffline": False,
+                        "idle": True,
+                        "numExecutors": 4,
+                    },
+                ]
+            }
+            args = mock.MagicMock(jenkins=None, user=None, system=None, offline=False)
+            rc = jenkins_api.cmd_list_nodes(args)
+        out = capsys.readouterr().out
+        assert rc == 0
+        payload = json.loads(out)["data"]
+        assert payload["total"] == 2
+        assert payload["offlineCount"] == 1
+        assert [n["name"] for n in payload["computers"]] == ["Built-In Node", "bug-10"]
+        offline = payload["computers"][1]
+        assert offline["offline"] is True
+        assert offline["offlineCauseReason"] == "Connection was broken"
+        args_called, kwargs = rj.call_args
+        assert args_called[2] == "/computer/api/json"
+        assert "computer[displayName" in kwargs["params"]["tree"]
+
+    def test_offline_filter_only_returns_offline(self, capsys):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = {
+                "computer": [
+                    {"displayName": "node-up", "offline": False},
+                    {"displayName": "node-down", "offline": True, "offlineCauseReason": "lost"},
+                ]
+            }
+            args = mock.MagicMock(jenkins=None, user=None, system=None, offline=True)
+            rc = jenkins_api.cmd_list_nodes(args)
+        payload = json.loads(capsys.readouterr().out)["data"]
+        assert rc == 0
+        assert payload["total"] == 2
+        assert payload["offlineCount"] == 1
+        assert [n["name"] for n in payload["computers"]] == ["node-down"]
+
+    def test_no_computer_key(self, capsys):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = {}
+            args = mock.MagicMock(jenkins=None, user=None, system=None, offline=False)
+            rc = jenkins_api.cmd_list_nodes(args)
+        payload = json.loads(capsys.readouterr().out)["data"]
+        assert rc == 0
+        assert payload["computers"] == []
+        assert payload["total"] == 0
+
+    def test_non_dict_response(self, capsys):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = []
+            args = mock.MagicMock(jenkins=None, user=None, system=None, offline=False)
+            rc = jenkins_api.cmd_list_nodes(args)
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["data"]["computers"] == []
+
+    def test_node_missing_fields_and_null_reason(self, capsys):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = {"computer": [{"offlineCauseReason": None}]}
+            args = mock.MagicMock(jenkins=None, user=None, system=None, offline=False)
+            jenkins_api.cmd_list_nodes(args)
+        node = json.loads(capsys.readouterr().out)["data"]["computers"][0]
+        assert node["name"] == "N/A"
+        assert node["offline"] is False
+        assert node["offlineCauseReason"] == ""
+        assert node["numExecutors"] == 0
+
+    def test_non_dict_computer_entry_skipped(self, capsys):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(_mock_target_patch())
+            rj = stack.enter_context(mock.patch("jenkins_api.request_json"))
+            rj.return_value = {"computer": ["junk", {"displayName": "ok", "offline": False}]}
+            args = mock.MagicMock(jenkins=None, user=None, system=None, offline=False)
+            jenkins_api.cmd_list_nodes(args)
+        payload = json.loads(capsys.readouterr().out)["data"]
+        assert payload["total"] == 1
+        assert payload["computers"][0]["name"] == "ok"
+
+
 class TestCmdGetJob:
     def test_get_job_no_depth(self, capsys):
         with contextlib.ExitStack() as stack:
@@ -819,6 +917,7 @@ class TestCli:
             "list-builds",
             "build-job",
             "list-queue",
+            "list-nodes",
             "disable-job",
             "enable-job",
             "stop-build",
@@ -895,6 +994,15 @@ class TestCli:
     def test_handler_dispatch(self):
         args = jenkins_api.build_parser().parse_args(["list-queue"])
         assert args.handler is jenkins_api.cmd_list_queue
+
+    def test_list_nodes_offline_default_false(self):
+        args = jenkins_api.build_parser().parse_args(["list-nodes"])
+        assert args.offline is False
+        assert args.handler is jenkins_api.cmd_list_nodes
+
+    def test_list_nodes_offline_flag(self):
+        args = jenkins_api.build_parser().parse_args(["list-nodes", "--offline"])
+        assert args.offline is True
 
 
 # ===================================================================
