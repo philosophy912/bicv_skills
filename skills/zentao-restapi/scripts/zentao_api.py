@@ -75,7 +75,12 @@ def confirm_dangerous(operation: str, description: str, resource: str) -> None:
     print(f"操作: {operation}")
     print(f"资源: {resource}")
     print(f"影响: {description}")
-    answer = input("确认执行? (y/N): ").strip().lower()
+    try:
+        answer = input("确认执行? (y/N): ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        # Ctrl+D / Ctrl+C：干净取消，不打印 traceback
+        print("\n已取消操作")
+        raise SystemExit(0) from None
     if answer != "y":
         print("已取消操作")
         raise SystemExit(0)
@@ -86,6 +91,13 @@ def confirm_dangerous(operation: str, description: str, resource: str) -> None:
 # ---------------------------------------------------------------------------
 
 API_PATH_PREFIX = "/api.php/v2"
+
+# HTTP 请求超时（秒），防止 CLI 直连时服务端无响应导致进程永久挂起
+REQUEST_TIMEOUT = 30
+
+# 写操作集合：遇 401 不自动重试（token 过期边界下服务端可能已执行，
+# 重试会造成重复创建），改为提示用户重新认证
+_WRITE_METHODS = frozenset({"POST", "PUT", "DELETE", "PATCH"})
 
 
 def _build_url(zentao_url: str, path: str, *, params: dict[str, Any] | None = None) -> str:
@@ -119,7 +131,7 @@ def request_json(
     req = request.Request(url, data=data, headers=headers, method=method.upper())
 
     try:
-        with request.urlopen(req) as resp:
+        with request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
             body = resp.read().decode("utf-8")
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
@@ -172,11 +184,21 @@ def request_json_with_auth(
     try:
         return request_json(method, zentao_url, path, token=token, params=params, payload=payload)
     except ZentaoError as exc:
-        if exc.status_code == 401 and not force_token:
-            token = get_token(target, force=True)
-            return request_json(
-                method, zentao_url, path, token=token, params=params, payload=payload
-            )
+        if exc.status_code == 401:
+            if method.upper() in _WRITE_METHODS:
+                # 写操作不自动重试：token 过期边界下服务端可能已执行，
+                # 重试会重复创建资源；提示用户重新认证后手动重试。
+                raise ZentaoError(
+                    "写操作遇到 401（token 可能已过期）。为避免重复创建，未自动重试；"
+                    "请重新获取 token 后再试。",
+                    status_code=401,
+                    response_text=exc.response_text,
+                ) from exc
+            if not force_token:
+                token = get_token(target, force=True)
+                return request_json(
+                    method, zentao_url, path, token=token, params=params, payload=payload
+                )
         raise
 
 
@@ -304,10 +326,18 @@ def cmd_create_bug(args: argparse.Namespace) -> int:
 def cmd_update_bug(args: argparse.Namespace) -> int:
     target = _target(args)
     payload: dict[str, Any] = {}
-    for key in ("title", "severity", "pri", "type", "status", "assigned_to"):
-        val = getattr(args, key, None)
+    # payload 用禅道 v2 驼峰字段名（与 create-bug 一致）；assigned_to → assignedTo
+    for arg_key, field in (
+        ("title", "title"),
+        ("severity", "severity"),
+        ("pri", "pri"),
+        ("type", "type"),
+        ("status", "status"),
+        ("assigned_to", "assignedTo"),
+    ):
+        val = getattr(args, arg_key, None)
         if val is not None:
-            payload[key] = val
+            payload[field] = val
     if args.keywords is not None:
         payload["keywords"] = args.keywords
     result = request_json_with_auth(
@@ -407,20 +437,21 @@ def cmd_create_task(args: argparse.Namespace) -> int:
 def cmd_update_task(args: argparse.Namespace) -> int:
     target = _target(args)
     payload: dict[str, Any] = {}
-    for key in (
-        "name",
-        "assigned_to",
-        "estimate",
-        "consumed",
-        "left",
-        "status",
-        "pri",
-        "type",
-        "desc",
+    # payload 用禅道 v2 驼峰字段名（与 create-task 一致）；assigned_to → assignedTo
+    for arg_key, field in (
+        ("name", "name"),
+        ("assigned_to", "assignedTo"),
+        ("estimate", "estimate"),
+        ("consumed", "consumed"),
+        ("left", "left"),
+        ("status", "status"),
+        ("pri", "pri"),
+        ("type", "type"),
+        ("desc", "desc"),
     ):
-        val = getattr(args, key, None)
+        val = getattr(args, arg_key, None)
         if val is not None:
-            payload[key] = val
+            payload[field] = val
     result = request_json_with_auth(
         "PUT", target.url, f"/tasks/{args.id}", target=target, payload=payload
     )
@@ -512,10 +543,17 @@ def cmd_create_story(args: argparse.Namespace) -> int:
 def cmd_update_story(args: argparse.Namespace) -> int:
     target = _target(args)
     payload: dict[str, Any] = {}
-    for key in ("title", "desc", "pri", "status", "assigned_to"):
-        val = getattr(args, key, None)
+    # payload 用禅道 v2 驼峰字段名（与 create-story 一致）；assigned_to → assignedTo
+    for arg_key, field in (
+        ("title", "title"),
+        ("desc", "desc"),
+        ("pri", "pri"),
+        ("status", "status"),
+        ("assigned_to", "assignedTo"),
+    ):
+        val = getattr(args, arg_key, None)
         if val is not None:
-            payload[key] = val
+            payload[field] = val
     result = request_json_with_auth(
         "PUT", target.url, f"/stories/{args.id}", target=target, payload=payload
     )
@@ -624,10 +662,19 @@ def cmd_create_project(args: argparse.Namespace) -> int:
 def cmd_update_project(args: argparse.Namespace) -> int:
     target = _target(args)
     payload: dict[str, Any] = {}
-    for key in ("name", "code", "begin", "end", "desc", "status", "pm"):
-        val = getattr(args, key, None)
+    # payload 用禅道 v2 字段名（与 create-project 一致）；pm → PM
+    for arg_key, field in (
+        ("name", "name"),
+        ("code", "code"),
+        ("begin", "begin"),
+        ("end", "end"),
+        ("desc", "desc"),
+        ("status", "status"),
+        ("pm", "PM"),
+    ):
+        val = getattr(args, arg_key, None)
         if val is not None:
-            payload[key] = val
+            payload[field] = val
     result = request_json_with_auth(
         "PUT", target.url, f"/projects/{args.id}", target=target, payload=payload
     )
@@ -687,10 +734,18 @@ def cmd_create_execution(args: argparse.Namespace) -> int:
 def cmd_update_execution(args: argparse.Namespace) -> int:
     target = _target(args)
     payload: dict[str, Any] = {}
-    for key in ("name", "begin", "end", "desc", "status", "pm"):
-        val = getattr(args, key, None)
+    # payload 用禅道 v2 字段名（与 create-execution 一致）；pm → PM
+    for arg_key, field in (
+        ("name", "name"),
+        ("begin", "begin"),
+        ("end", "end"),
+        ("desc", "desc"),
+        ("status", "status"),
+        ("pm", "PM"),
+    ):
+        val = getattr(args, arg_key, None)
         if val is not None:
-            payload[key] = val
+            payload[field] = val
     result = request_json_with_auth(
         "PUT", target.url, f"/executions/{args.id}", target=target, payload=payload
     )

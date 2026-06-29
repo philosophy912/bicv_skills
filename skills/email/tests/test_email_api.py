@@ -426,6 +426,25 @@ class TestBuildMessage:
         assert msg["Date"] is not None
         assert recipients == ["a@x.com"]
 
+    def test_attachment_too_large_raises(self, tmp_path, monkeypatch):
+        # 附件超上限直接报错，不读入内存（防 OOM）
+        monkeypatch.setattr(email_api, "ATTACHMENT_MAX_BYTES", 10)
+        att = tmp_path / "big.bin"
+        att.write_bytes(b"x" * 100)  # 100 字节 > 上限 10
+        with pytest.raises(ServiceError) as exc_info:
+            email_api.build_message(
+                from_address="me@x.com",
+                to=["a@x.com"],
+                cc=[],
+                bcc=[],
+                subject="Hi",
+                body="Hello",
+                html=False,
+                attachments=[str(att)],
+                reply_to=None,
+            )
+        assert "附件过大" in str(exc_info.value)
+
     def test_html_creates_alternative_with_plain_fallback(self):
         msg, _recipients = email_api.build_message(
             from_address="me@x.com",

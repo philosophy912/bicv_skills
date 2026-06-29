@@ -77,6 +77,11 @@ def validate_sql(sql: str) -> tuple[bool, str | None]:
     """
     sql_upper = sql.upper()
 
+    # MySQL 条件注释 /*!...*/ 是可执行注释，不能当普通注释删除（否则其中的
+    # DELETE 等关键词会绕过检测）。直接拒绝含条件注释的 SQL。
+    if re.search(r"/\*\s*!", sql):
+        return False, "CONDITIONAL COMMENT"
+
     sql_clean = re.sub(r"--.*$", "", sql_upper, flags=re.MULTILINE)
     sql_clean = re.sub(r"/\*.*?\*/", "", sql_clean, flags=re.DOTALL)
     sql_clean = _STRING_RE.sub("", sql_clean)
@@ -100,11 +105,18 @@ def validate_sql(sql: str) -> tuple[bool, str | None]:
 
 
 def read_sql_file(sql_source: str) -> str:
-    """Read SQL from a file (``@path``) or return *sql_source* as-is."""
+    """Read SQL from a file (``@path``) or return *sql_source* as-is.
+
+    ``@path`` 由用户显式指定、按原样读取（不做目录限制）；拒绝含 NUL 字节的
+    路径以防截断攻击。注意：与 ``_mysql_config`` 的凭据解析不同，本函数不施加
+    路径遍历限制——用户对自己指定的 SQL 文件负责。
+    """
     if not sql_source.startswith("@"):
         return sql_source
 
     file_path = sql_source[1:]
+    if "\x00" in file_path:
+        raise ServiceError(f"SQL file path contains NUL byte: {file_path!r}")
     try:
         return Path(file_path).read_text(encoding="utf-8")
     except FileNotFoundError as exc:

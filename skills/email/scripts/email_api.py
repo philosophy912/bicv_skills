@@ -48,6 +48,8 @@ MAX_LIMIT = 500
 DEFAULT_FOLDER = "INBOX"
 DEFAULT_SUBJECT = "(无主题)"
 ATTACHMENT_FALLBACK_PREFIX = "attachment"
+# 单个附件大小上限（字节），超限直接报错而非整文件读入内存（防 OOM）
+ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024
 
 CONFIG_PATH_HINT = f"~/.bicv/{CONFIG_NAME}"
 
@@ -567,6 +569,13 @@ def build_message(
     for path in attachments:
         if not os.path.exists(path):
             raise ServiceError(f"附件文件不存在: {path}")
+        # 防大附件 OOM：超限直接报错，而非整文件读入内存
+        size = os.path.getsize(path)
+        if size > ATTACHMENT_MAX_BYTES:
+            raise ServiceError(
+                f"附件过大: {path}（{size} 字节 > 上限 {ATTACHMENT_MAX_BYTES} 字节，"
+                f"约 {ATTACHMENT_MAX_BYTES // (1024 * 1024)} MB）"
+            )
         try:
             with open(path, "rb") as f:
                 content = f.read()

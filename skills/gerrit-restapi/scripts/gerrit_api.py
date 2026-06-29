@@ -19,6 +19,9 @@ from system_config import (
 GerritError = ServiceError
 GerritTarget = ServiceTarget
 
+# HTTP 请求超时（秒），防止 CLI 直连时服务端无响应导致进程永久挂起
+REQUEST_TIMEOUT = 30
+
 XSSI_PREFIX = ")]}'"
 
 
@@ -83,7 +86,7 @@ def request_json(
     req = request.Request(url, data=data, headers=headers, method=method.upper())
 
     try:
-        with request.urlopen(req) as resp:
+        with request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
             body = resp.read().decode("utf-8")
     except error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")

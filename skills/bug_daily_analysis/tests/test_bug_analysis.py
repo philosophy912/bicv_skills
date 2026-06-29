@@ -436,6 +436,18 @@ class TestResolveWindow:
         )
         assert abs((parsed - expected).total_seconds()) < 10
 
+    def test_invalid_since_format_raises(self):
+        # 含注入字符（' / 字母）的时间参数被格式校验拒绝，防 SQL 注入
+        args = mock.Mock(since="x' OR '1'='1", until=None)
+        with pytest.raises(bug_analysis.ConfigError):
+            bug_analysis._resolve_window(args)
+
+    def test_invalid_until_format_raises(self):
+        # 用 / 而非 - 的日期格式被拒绝
+        args = mock.Mock(since=None, until="2026/06/01")
+        with pytest.raises(bug_analysis.ConfigError):
+            bug_analysis._resolve_window(args)
+
 
 # ---------------------------------------------------------------------------
 # cmd_submissions

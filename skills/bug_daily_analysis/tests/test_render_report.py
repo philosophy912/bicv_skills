@@ -92,6 +92,12 @@ class TestPureHelpers:
     def test_fmt_pct_zero_total(self):
         assert rr._fmt_pct(0, 0) == "0%"
 
+    def test_md_cell_escapes_pipe_and_newline(self):
+        # | 转义、换行转空格，避免破坏 Markdown 表格
+        assert rr._md_cell("a|b") == "a\\|b"
+        assert rr._md_cell("a\nb") == "a b"
+        assert rr._md_cell(5) == "5"
+
     def test_overdue_rows_merge_id_prefix_and_sort(self):
         rows = rr._overdue_rows(_overdue_payload())
         assert len(rows) == 2

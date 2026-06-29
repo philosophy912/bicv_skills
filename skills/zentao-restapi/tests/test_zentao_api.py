@@ -274,6 +274,17 @@ class TestConfirmDangerous:
         with mock.patch("builtins.input", return_value="Y"):
             zentao_api.confirm_dangerous("delete-bug", "永久删除 Bug", "Bug ID=1")
 
+    def test_confirm_eof_raises_system_exit(self):
+        with mock.patch("builtins.input", side_effect=EOFError), pytest.raises(SystemExit):
+            zentao_api.confirm_dangerous("delete-bug", "永久删除 Bug", "Bug ID=1")
+
+    def test_confirm_keyboard_interrupt_raises_system_exit(self):
+        with (
+            mock.patch("builtins.input", side_effect=KeyboardInterrupt),
+            pytest.raises(SystemExit),
+        ):
+            zentao_api.confirm_dangerous("delete-bug", "永久删除 Bug", "Bug ID=1")
+
 
 class TestDeleteConfirmation:
     def test_delete_bug_prompts_confirmation(self):
@@ -1074,6 +1085,22 @@ class TestRequestJsonWithAuthErrors:
             # force_token path calls get_token only once
             assert gt.call_count == 1
 
+    def test_write_op_401_does_not_retry(self):
+        """写操作(POST)遇 401 不自动重试，避免重复创建；直接抛 401 且不刷新 token。"""
+        target = zentao_api.ZentaoTarget(url="http://z.com", auth=("a", "b"))
+        with mock.patch.object(zentao_api, "get_token", return_value="t") as gt:
+            with mock.patch.object(zentao_api, "request_json") as rj:
+                rj.side_effect = ServiceError("expired", status_code=401)
+                with pytest.raises(ServiceError) as exc_info:
+                    zentao_api.request_json_with_auth(
+                        "POST", "http://z.com", "/bugs", target=target, payload={"x": 1}
+                    )
+                assert exc_info.value.status_code == 401
+                assert "重复创建" in exc_info.value.message
+                # 写操作不重试：request_json 只调一次，get_token 不重新刷新
+                assert rj.call_count == 1
+            assert gt.call_count == 1
+
 
 class TestCmdGetToken:
     def test_get_token_prints_token(self, capsys):
@@ -1167,7 +1194,7 @@ class TestCmdBugBranches:
             assert rc == 0
             _, kwargs = rj.call_args
             assert kwargs["payload"]["keywords"] == "kw"
-            assert kwargs["payload"]["assigned_to"] == "u"
+            assert kwargs["payload"]["assignedTo"] == "u"
 
     def test_resolve_bug_with_build(self):
         with contextlib.ExitStack() as stack:
@@ -1505,7 +1532,7 @@ class TestCmdProjects:
             rc = zentao_api.cmd_update_project(args)
             assert rc == 0
             _, kwargs = rj.call_args
-            assert kwargs["payload"]["pm"] == "p"
+            assert kwargs["payload"]["PM"] == "p"
 
     def test_delete_project_confirmed(self):
         with contextlib.ExitStack() as stack:
@@ -1616,7 +1643,7 @@ class TestCmdExecutions:
             rc = zentao_api.cmd_update_execution(args)
             assert rc == 0
             _, kwargs = rj.call_args
-            assert kwargs["payload"]["pm"] == "p"
+            assert kwargs["payload"]["PM"] == "p"
 
     def test_delete_execution_confirmed(self):
         with contextlib.ExitStack() as stack:

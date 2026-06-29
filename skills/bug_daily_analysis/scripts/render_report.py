@@ -139,6 +139,11 @@ def _fmt_pct(n: int, total: int) -> str:
     return f"{n / total:.0%}" if total else "0%"
 
 
+def _md_cell(value: Any) -> str:
+    """转义 Markdown 表格单元格：| → \\|，换行 → 空格，避免破坏表格结构。"""
+    return str(value).replace("|", "\\|").replace("\n", " ")
+
+
 # ---------------------------------------------------------------------------
 # Report builder
 # ---------------------------------------------------------------------------
@@ -165,12 +170,12 @@ def build_report(sub_data: dict[str, Any] | None, ovd_data: dict[str, Any] | Non
         by_user = merge_counter(zt.get("by_user"), rm.get("by_user"))
         lines += ["", "### 按提交人", "", "| 排名 | 提交人 | 数量 | 占比 |", "|---|---|---|---|"]
         for i, (u, c) in enumerate(sorted(by_user.items(), key=lambda kv: (-kv[1], kv[0])), 1):
-            lines.append(f"| {i} | {u} | {c} | {_fmt_pct(c, sub_total)} |")
+            lines.append(f"| {i} | {_md_cell(u)} | {c} | {_fmt_pct(c, sub_total)} |")
 
         by_proj = merge_counter(zt.get("by_project"), rm.get("by_project"))
         lines += ["", "### 按项目", "", "| 排名 | 项目 | 数量 | 占比 |", "|---|---|---|---|"]
         for i, (p, c) in enumerate(sorted(by_proj.items(), key=lambda kv: (-kv[1], kv[0])), 1):
-            lines.append(f"| {i} | {p} | {c} | {_fmt_pct(c, sub_total)} |")
+            lines.append(f"| {i} | {_md_cell(p)} | {c} | {_fmt_pct(c, sub_total)} |")
 
     if ovd_data:
         ozt = ovd_data.get("zentao") or {}
@@ -190,7 +195,7 @@ def build_report(sub_data: dict[str, Any] | None, ovd_data: dict[str, Any] | Non
         ovd_by_user = merge_counter(ozt.get("by_user"), orm.get("by_user"))
         lines += ["", "### 按指派人", "", "| 指派人 | 超期条数 |", "|---|---|"]
         for u, c in sorted(ovd_by_user.items(), key=lambda kv: (-kv[1], kv[0])):
-            lines.append(f"| {u} | {c} |")
+            lines.append(f"| {_md_cell(u)} | {c} |")
 
         rows = _overdue_rows(ovd_data)
         lines += [
@@ -202,7 +207,8 @@ def build_report(sub_data: dict[str, Any] | None, ovd_data: dict[str, Any] | Non
         ]
         for r in rows:
             lines.append(
-                f"| {r['id']} | {r['project']} | {r['module']} | {r['assignee']} | {r['days']} |"
+                f"| {_md_cell(r['id'])} | {_md_cell(r['project'])} | {_md_cell(r['module'])} "
+                f"| {_md_cell(r['assignee'])} | {r['days']} |"
             )
 
     lines.append("")

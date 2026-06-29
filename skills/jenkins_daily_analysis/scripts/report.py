@@ -55,7 +55,10 @@ def merge_builds(
     for b in builds:
         entry = analyses.get((b["job"], b["number"]))
         if entry:
-            b["category"] = entry.get("category", "unknown")
+            # 归一化：agent 写入的非标准 category（如 'infra'）统一归 unknown，
+            # 保证 by_category 四类之和 == total_failed，统计自洽
+            category = entry.get("category", "unknown")
+            b["category"] = category if category in CATEGORIES else "unknown"
             b["confidence"] = entry.get("confidence", "low")
             b["evidence"] = entry.get("evidence", "")
             b["log_excerpt"] = entry.get("log_excerpt", "")

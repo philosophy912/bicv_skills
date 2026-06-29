@@ -97,6 +97,10 @@ def collect_one_job(
                 str(since_hours),
                 "--result",
                 "!SUCCESS",
+                # limit=0 走 jenkins_api 的“不限”分支（不带 tree range），
+                # 避免默认 50 在服务端截断后丢失高频 job 窗口内的较早失败
+                "--limit",
+                "0",
             ],
             system,
         )

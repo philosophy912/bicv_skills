@@ -66,6 +66,11 @@ class TestFetchOne:
             (_, _), ok, payload = fetch.fetch_one("/c", None, {"job": "J", "number": 1})
         assert ok is False and "ValueError" in payload
 
+    def test_missing_keys_is_error(self):
+        # 脏条目（缺 number）返回错误而非抛 KeyError
+        (_, _), ok, payload = fetch.fetch_one("/c", None, {"job": "J"})
+        assert ok is False and "缺少" in payload
+
 
 # ===================================================================
 # cmd_fetch
@@ -125,6 +130,29 @@ class TestCmdFetch:
         assert rc == 0
         assert "fetched ok=0 err=0" in capsys.readouterr().out
         m.assert_not_called()
+
+    def test_dirty_entry_marked_and_skipped(self, tmp_path, capsys):
+        # builds.json 含缺 number 的脏条目：不崩溃，标记 fetch_error，其余正常处理
+        builds = [
+            {"job": "GOOD", "number": 1, "result": "FAILURE"},
+            {"job": "DIRTY"},  # 缺 number
+        ]
+        _write_builds(tmp_path, builds)
+
+        def fake_fetch_one(cli, system, b):
+            return (b.get("job"), b.get("number")), True, "log"
+
+        args = mock.MagicMock(cli="/c", system=None, workers=4, rundir=str(tmp_path))
+        with mock.patch("fetch.fetch_one", side_effect=fake_fetch_one):
+            rc = fetch.cmd_fetch(args)
+        assert rc == 0
+        out = capsys.readouterr().out
+        # GOOD 成功(ok)，DIRTY 缺键算 err
+        assert "fetched ok=1 err=1" in out
+        with open(tmp_path / "builds.json", encoding="utf-8") as fh:
+            data = json.load(fh)
+        dirty = next(b for b in data["builds"] if b["job"] == "DIRTY")
+        assert dirty.get("fetch_error") is True
 
 
 # ===================================================================

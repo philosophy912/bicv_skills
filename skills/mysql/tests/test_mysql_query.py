@@ -158,6 +158,12 @@ class TestValidateSqlEdgeCases:
         assert ok is False
         assert kw == "DROP"
 
+    def test_conditional_comment_rejected(self):
+        # MySQL 条件注释 /*!...*/ 可执行，整体拒绝（否则其中 DELETE 绕过检测）
+        ok, kw = mysql_query.validate_sql("SELECT 1 /*!50000 DELETE FROM t */")
+        assert ok is False
+        assert kw == "CONDITIONAL COMMENT"
+
 
 # ===========================================================================
 # read_sql_file
@@ -184,6 +190,12 @@ class TestReadSqlFile:
         with pytest.raises(ServiceError) as exc_info:
             mysql_query.read_sql_file(f"@{tmp_path}")
         assert "Error reading SQL file" in str(exc_info.value)
+
+    def test_nul_byte_in_path_raises(self):
+        # 含 NUL 字节的路径被拒，防截断攻击
+        with pytest.raises(ServiceError) as exc_info:
+            mysql_query.read_sql_file("@good\x00evil.sql")
+        assert "NUL" in str(exc_info.value)
 
 
 # ===========================================================================

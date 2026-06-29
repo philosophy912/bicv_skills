@@ -22,6 +22,9 @@ from system_config import (
 JenkinsError = ServiceError
 JenkinsTarget = ServiceTarget
 
+# HTTP 请求超时（秒），防止 CLI 直连时服务端无响应导致进程永久挂起
+REQUEST_TIMEOUT = 30
+
 
 def get_crumb(target: JenkinsTarget) -> tuple[str, str] | None:
     if target.auth is None:
@@ -84,7 +87,7 @@ def request_text(
 
     req = request.Request(url, data=body, headers=req_headers, method=method.upper())
     try:
-        with request.urlopen(req) as response:
+        with request.urlopen(req, timeout=REQUEST_TIMEOUT) as response:
             # consoleText 等响应可能含非 UTF-8 字节（嵌入式编译输出的 GBK/二进制字节），
             # 用 replace 容错解码避免 UnicodeDecodeError；JSON 请求里替换字符不影响解析。
             return response.read().decode("utf-8", errors="replace")

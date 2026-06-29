@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -196,15 +197,27 @@ def _execute_query(conn: Any, sql: str) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
+_WINDOW_DT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$")
+
+
+def _validate_window_dt(value: str, flag: str) -> str:
+    """校验时间参数格式（YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS），防 SQL 注入。"""
+    if not _WINDOW_DT_RE.match(value):
+        raise ConfigError(
+            f"参数 {flag} 格式应为 'YYYY-MM-DD' 或 'YYYY-MM-DD HH:MM:SS'，当前: {value!r}"
+        )
+    return value
+
+
 def _resolve_window(args: argparse.Namespace) -> tuple[str, str]:
     """解析时间窗口，返回 (since, until) 字符串（YYYY-MM-DD HH:MM:SS）。"""
     if args.until:
-        until = args.until
+        until = _validate_window_dt(args.until, "--until")
     else:
         until = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     if args.since:
-        since = args.since
+        since = _validate_window_dt(args.since, "--since")
     else:
         since = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d 00:00:00")
 

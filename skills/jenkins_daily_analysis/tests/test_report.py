@@ -80,6 +80,14 @@ class TestMergeBuilds:
         assert builds[0]["confidence"] == "low"
         assert "未判定" in builds[0]["evidence"]
 
+    def test_nonstandard_category_normalized_to_unknown(self):
+        # agent 写入的非标准 category（如 'infra'）归一化为 unknown，
+        # 保证 by_category 四类之和 == total_failed
+        builds = [_build("J", 1)]
+        analyses = {("J", 1): {"category": "infra", "evidence": "x"}}
+        report.merge_builds(builds, analyses)
+        assert builds[0]["category"] == "unknown"
+
 
 # ===================================================================
 # pick_representatives

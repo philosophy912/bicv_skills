@@ -40,7 +40,10 @@ def fetch_one(
     ok=True 时 payload 为日志原文；ok=False 时 payload 为错误描述。fetch_one 不写
     文件，由调用方决定落盘，便于测试。
     """
-    job, number = build["job"], build["number"]
+    job = build.get("job")
+    number = build.get("number")
+    if job is None or number is None:
+        return (job, number), False, "build 缺少 'job' 或 'number' 字段"
     try:
         proc = run_jenkins_cli(
             cli,
@@ -91,11 +94,18 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     # 回写 builds.json：成功的补 log_file，失败的记 fetch_error（analyze 归 unknown）
     okn = errn = 0
     for b in builds:
-        key = (b["job"], b["number"])
+        job = b.get("job")
+        number = b.get("number")
+        # 脏数据（缺 job/number）标记 fetch_error 跳过，不中断整批回写
+        if job is None or number is None:
+            b["fetch_error"] = True
+            errn += 1
+            continue
+        key = (job, number)
         ok, _ = results.get(key, (False, "not run"))
         if ok:
             b.pop("fetch_error", None)
-            b["log_file"] = log_filename(b["job"], b["number"])
+            b["log_file"] = log_filename(job, number)
             okn += 1
         else:
             b["fetch_error"] = True
