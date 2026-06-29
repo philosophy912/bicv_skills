@@ -1,8 +1,8 @@
-# Gerrit 每日分析 — 四阶段 Pipeline
+# Gerrit 分析 — 四阶段 Pipeline
 
 ## 运行目录结构
 
-每次运行落到 `<output_root>/<skills.gerrit_daily_analysis>/<本地时间戳>/`，时间戳格式
+每次运行落到 `<output_root>/<skills.gerrit_analysis>/<本地时间戳>/`，时间戳格式
 `YYYY-MM-DD_HHMMSS`（本地时间）。多次运行互不覆盖。
 
 ```
@@ -20,7 +20,7 @@
 
 ## 阶段 1：collect —— 按人收集 merged change
 
-1. 读 `gerrit_daily_analysis.json` 的 `users`、`ignore_projects`。
+1. 读 `gerrit_analysis.json` 的 `users`、`ignore_projects`。
 2. 解析时间窗口：用户 prompt 带时间段 → 换算成 UTC 的 `after:"yyyy-MM-dd HH:mm:ss"` 与
    `before:"yyyy-MM-dd HH:mm:ss"`；没带 → 用 now-24h 到 now（同样换算 UTC）。
 3. 对每个 user 调：

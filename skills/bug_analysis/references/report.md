@@ -1,4 +1,4 @@
-# Bug 每日分析 — Markdown 报告（render_report.py）
+# Bug 分析 — Markdown 报告（render_report.py）
 
 把 `bug_analysis.py` 的 JSON 渲染成**表格形式**的 Markdown 报告，便于一眼定位问题。只吃 JSON、不连库、不依赖 matplotlib，可独立运行。
 

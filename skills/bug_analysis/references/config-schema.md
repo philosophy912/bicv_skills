@@ -1,8 +1,8 @@
-# bug_daily_analysis 配置说明
+# bug_analysis 配置说明
 
 ## 配置文件
 
-`~/.bicv/bug_daily_analysis.json`
+`~/.bicv/bug_analysis.json`
 
 ## 字段
 

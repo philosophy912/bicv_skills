@@ -1,4 +1,4 @@
-# Bug 每日分析 — 配置引导
+# Bug 分析 — 配置引导
 
 ## 1. MySQL 连接
 
@@ -22,7 +22,7 @@ python3 skills/mysql/scripts/mysql_query.py select "SELECT 1" --system ticket
 }
 ```
 
-## 2. 分析配置文件（~/.bicv/bug_daily_analysis.json）
+## 2. 分析配置文件（~/.bicv/bug_analysis.json）
 
 ```json
 {
@@ -46,12 +46,12 @@ python3 skills/mysql/scripts/mysql_query.py select "SELECT 1" --system ticket
 {
   "output_root": "/path/to/output",
   "skills": {
-    "bug_daily_analysis": "bug_daily_analysis"
+    "bug_analysis": "bug_analysis"
   }
 }
 ```
 
 - `output_root`（必填）：所有 skill 的输出根目录。
-- `skills["bug_daily_analysis"]`（可选）：指定本 skill 的子目录名；未配置时默认回退到 `"bug_daily_analysis"`。
+- `skills["bug_analysis"]`（可选）：指定本 skill 的子目录名；未配置时默认回退到 `"bug_analysis"`。
 - 实际输出路径 = `output_root / <子目录>/`，脚本会自动创建。
 - `render_charts.py --out <dir>` 可临时覆盖（优先级最高）。

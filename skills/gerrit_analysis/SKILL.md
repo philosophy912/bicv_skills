@@ -1,5 +1,5 @@
 ---
-name: gerrit_daily_analysis
+name: gerrit_analysis
 description: |
   分析配置的用户列表在指定时间段内提交并入库（status:merged）的代码情况：按人统计 merged change
   数、patch set 数、增删行数、创建到入库时长、review 评论数与被打回次数，并做 **AI 评审前置合规
@@ -8,11 +8,11 @@ description: |
   「分析入库代码量、review 效率，或 +2 是否抢在 AI 评审之前」时使用。
 ---
 
-# Gerrit 入库代码每日分析
+# Gerrit 入库代码分析
 
 ## 核心约定
 
-- **分析对象**：`~/.bicv/gerrit_daily_analysis.json` 里 `users` 列出的 Gerrit 账号**邮箱**。
+- **分析对象**：`~/.bicv/gerrit_analysis.json` 里 `users` 列出的 Gerrit 账号**邮箱**。
 - **入库定义**：`status:merged`（不统计 open / abandoned）。
 - **时间窗口**：用户 prompt 给定时间段；未给则默认滚动 24 小时（now-24h 到 now）。
   详见 [references/time-window.md](references/time-window.md)。
@@ -23,7 +23,7 @@ description: |
 ## 配置
 
 - 认证：`~/.bicv/gerrit.json`（复用 gerrit-restapi）
-- 分析对象与规则：`~/.bicv/gerrit_daily_analysis.json`
+- 分析对象与规则：`~/.bicv/gerrit_analysis.json`
 - 输出位置：`~/.bicv/common.json`
 
 配置详情见 [references/config.md](references/config.md)。
@@ -45,7 +45,7 @@ description: |
 
 1. gerrit-restapi skill 已安装，`gerrit_api.py` 可用且支持 `query-changes --json --option`。
 2. `~/.bicv/gerrit.json` 存在且配置了目标 Gerrit。
-3. `~/.bicv/gerrit_daily_analysis.json` 存在且 `users` 非空。不存在则用 AskUserQuestion 收集。
+3. `~/.bicv/gerrit_analysis.json` 存在且 `users` 非空。不存在则用 AskUserQuestion 收集。
 4. 确认/创建 `~/.bicv/common.json`。
 
 ## 禁止

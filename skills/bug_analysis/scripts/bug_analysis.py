@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bug Daily Analysis — 测试组缺陷提交与超期跟踪。
+"""Bug Analysis — 测试组缺陷提交与超期跟踪。
 
 两个子命令：
     submissions  – 按提交时间框，查用户组提交的缺陷（禅道+Redmine）
@@ -7,7 +7,7 @@
 
 依赖：
     mysql-connector-python（与 mysql skill 共享）
-    ~/.bicv/bug_daily_analysis.json（用户组 + 规则）
+    ~/.bicv/bug_analysis.json（用户组 + 规则）
     ~/.bicv/mysql.json（DB 连接，system=ticket）
 """
 
@@ -38,7 +38,7 @@ except ImportError:
 # Config
 # ---------------------------------------------------------------------------
 
-CONFIG_NAME = "bug_daily_analysis.json"
+CONFIG_NAME = "bug_analysis.json"
 MYSQL_CONFIG_NAME = "mysql.json"
 
 
@@ -66,7 +66,7 @@ def _validate_users(section: dict[str, Any], sys_name: str) -> list[str]:
 
 
 def load_analysis_config() -> dict[str, Any]:
-    """加载并校验 bug_daily_analysis.json。"""
+    """加载并校验 bug_analysis.json。"""
     config = _load_json_config(CONFIG_NAME)
 
     for sys_name in ("zentao", "redmine"):
@@ -441,7 +441,7 @@ def cmd_overdue(conn: Any, config: dict[str, Any], args: argparse.Namespace) -> 
 def build_parser() -> argparse.ArgumentParser:
     """构建 CLI 参数解析器。"""
     parser = argparse.ArgumentParser(
-        description="Bug Daily Analysis — 测试组缺陷提交与超期跟踪",
+        description="Bug Analysis — 测试组缺陷提交与超期跟踪",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

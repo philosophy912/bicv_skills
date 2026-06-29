@@ -1,4 +1,4 @@
-# Bug 每日分析 — 图片渲染（render_charts.py）
+# Bug 分析 — 图片渲染（render_charts.py）
 
 把 `bug_analysis.py` 的 JSON 输出渲染成 PNG 图表，**只吃 JSON、不连库**，职责与查询脚本分离。
 
@@ -19,7 +19,7 @@ python3 scripts/render_charts.py --submissions sub.json --out /some/dir
   - `overdue_by_user`：超期按指派人计数（横向条形图）。
   - `overdue_detail`：超期明细表格图（**缺陷ID** / 项目 / 模块 / 指派人 / 超期天数，按天数降序）；缺陷ID 带 `Z-`（禅道）/ `R-`（Redmine）前缀。
 - **不截断**：条形图超 25 条、表格超 30 行自动 **分页** 成多张（`_p1/_p2…`），数据一条不丢。
-- **输出目录**：默认 `~/.bicv/common.json` 的 `output_root/bug_daily_analysis`（可在 `common.json` 的 `skills` 里映射别名）；`--out` 可覆盖。
+- **输出目录**：默认 `~/.bicv/common.json` 的 `output_root/bug_analysis`（可在 `common.json` 的 `skills` 里映射别名）；`--out` 可覆盖。
 - 返回 JSON 信封：`{"generated_at", "output_dir", "charts": {<板块>: [<png 路径>…]}}`。
 
 ### 中文字体

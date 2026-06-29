@@ -49,8 +49,8 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 COMMON_CONFIG_NAME = "common.json"
-SKILL_NAME = "bug_daily_analysis"
-DEFAULT_OUTPUT_SUBDIR = "bug_daily_analysis"
+SKILL_NAME = "bug_analysis"
+DEFAULT_OUTPUT_SUBDIR = "bug_analysis"
 
 # 条形图/表格的分页阈值：超过则拆成多张图（不截断、不合并「其他」）
 BAR_PAGE_SIZE = 25
@@ -100,7 +100,7 @@ def _load_common_config() -> dict[str, Any]:
 
 
 def resolve_output_dir(custom: str | None) -> Path:
-    """解析输出目录：--out 优先，否则 common.json 的 output_root/skills[bug_daily_analysis]。"""
+    """解析输出目录：--out 优先，否则 common.json 的 output_root/skills[bug_analysis]。"""
     if custom:
         out_dir = Path(custom).expanduser()
     else:
@@ -510,7 +510,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--overdue", help="overdue 子命令输出的 JSON 文件路径")
     parser.add_argument(
         "--out",
-        help="输出目录（默认: common.json 的 output_root/bug_daily_analysis）",
+        help="输出目录（默认: common.json 的 output_root/bug_analysis）",
     )
     return parser
 

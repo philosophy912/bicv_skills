@@ -1,5 +1,5 @@
 ---
-name: jenkins_daily_analysis
+name: jenkins_analysis
 description: |
   分析过去 24 小时（滚动窗口，now-24h 到 now）Jenkins 全部 freestyle job 的失败构建，
   判定每个失败是不是 scm（git/svn 拉代码）问题，输出分类报告。
@@ -7,7 +7,7 @@ description: |
   「统计 scm 失败」时使用。
 ---
 
-# Jenkins 每日失败构建分析
+# Jenkins 失败构建分析
 
 ## 核心约定
 
@@ -20,7 +20,7 @@ description: |
 ## 配置
 
 - 认证：`~/.bicv/jenkins.json`（复用 jenkins-restapi）
-- 分析规则：`~/.bicv/jenkins_daily_analysis.json`（ignore_jobs / scm_jobs）
+- 分析规则：`~/.bicv/jenkins_analysis.json`（ignore_jobs / scm_jobs）
 - 输出位置：`~/.bicv/common.json`
 
 配置详情和四阶段 Pipeline 见 [references/pipeline.md](references/pipeline.md)。
@@ -41,11 +41,11 @@ description: |
 
 ```bash
 CLI=<jenkins_api.py 路径>
-RUN=$(python3 skills/jenkins_daily_analysis/scripts/collect.py --cli "$CLI" \
+RUN=$(python3 skills/jenkins_analysis/scripts/collect.py --cli "$CLI" \
       | sed -n 's/^rundir=//p')
-python3 skills/jenkins_daily_analysis/scripts/fetch.py --cli "$CLI" --rundir "$RUN"
+python3 skills/jenkins_analysis/scripts/fetch.py --cli "$CLI" --rundir "$RUN"
 # ↓ analyze：agent 读 $RUN/logs/*.log + references/*.md，写 $RUN/analyses.json
-python3 skills/jenkins_daily_analysis/scripts/report.py --rundir "$RUN" --cli "$CLI"
+python3 skills/jenkins_analysis/scripts/report.py --rundir "$RUN" --cli "$CLI"
 ```
 
 用户显式说「只跑某阶段」时，基于运行目录里已有产物重跑该阶段。

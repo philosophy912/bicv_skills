@@ -1,6 +1,6 @@
-# Jenkins 每日分析 — 四阶段 Pipeline + 配置
+# Jenkins 分析 — 四阶段 Pipeline + 配置
 
-## 分析规则配置（~/.bicv/jenkins_daily_analysis.json）
+## 分析规则配置（~/.bicv/jenkins_analysis.json）
 
 判定分类时读取本配置，用于覆盖/忽略特定 job：
 
@@ -21,13 +21,13 @@
 {
   "output_root": "~/.bicv/output",
   "skills": {
-    "jenkins_daily_analysis": "jenkins_daily_analysis"
+    "jenkins_analysis": "jenkins_analysis"
   }
 }
 ```
 
-- `output_root` 缺省 `~/.bicv/output`；`skills.jenkins_daily_analysis` 缺省 `jenkins_daily_analysis`。
-- 每次运行落到 `<output_root>/<skills.jenkins_daily_analysis>/<本地时间戳>/`。
+- `output_root` 缺省 `~/.bicv/output`；`skills.jenkins_analysis` 缺省 `jenkins_analysis`。
+- 每次运行落到 `<output_root>/<skills.jenkins_analysis>/<本地时间戳>/`。
 
 运行目录结构：
 
@@ -56,7 +56,7 @@
 ## 阶段 1：collect —— 收集失败构建（脚本）
 
 ```bash
-python3 skills/jenkins_daily_analysis/scripts/collect.py \
+python3 skills/jenkins_analysis/scripts/collect.py \
     --cli <jenkins_api.py> [--system <name>] \
     [--since-hours 24] [--workers 20] [--no-prefilter] [--rundir <dir>]
 ```
@@ -92,7 +92,7 @@ python3 skills/jenkins_daily_analysis/scripts/collect.py \
 ## 阶段 2：fetch —— 拉取控制台日志（脚本）
 
 ```bash
-python3 skills/jenkins_daily_analysis/scripts/fetch.py \
+python3 skills/jenkins_analysis/scripts/fetch.py \
     --cli <jenkins_api.py> --rundir <run-dir> [--system <name>] [--workers 20]
 ```
 
@@ -111,7 +111,7 @@ python3 skills/jenkins_daily_analysis/scripts/fetch.py \
 ## 阶段 3：analyze —— 判定分类（agent）
 
 agent 逐条读 `logs/<job>__<number>.log`，按下列顺序判定（**先命中先归类，单 category，
-scm 优先**）。判定前先读 `~/.bicv/jenkins_daily_analysis.json` 的 `ignore_jobs` / `scm_jobs`：
+scm 优先**）。判定前先读 `~/.bicv/jenkins_analysis.json` 的 `ignore_jobs` / `scm_jobs`：
 
 0. **最先：用户主动中止 或 配置忽略 → 忽略**。
    - 若 `result == ABORTED` 且日志含 `Aborted by <用户>` 行 → `category: "ignored"`，evidence 记
@@ -152,7 +152,7 @@ agent 把每条判定写入 `<run-dir>/analyses.json`：
 ## 阶段 4：report —— 呈现（脚本）
 
 ```bash
-python3 skills/jenkins_daily_analysis/scripts/report.py \
+python3 skills/jenkins_analysis/scripts/report.py \
     --rundir <run-dir> [--analyses <path>] [--cli <jenkins_api.py>] [--system <name>]
 ```
 

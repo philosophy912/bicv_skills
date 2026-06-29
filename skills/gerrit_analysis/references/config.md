@@ -1,11 +1,11 @@
-# Gerrit 每日分析 — 配置详情
+# Gerrit 分析 — 配置详情
 
 ## 1. 认证（~/.bicv/gerrit.json，复用 gerrit-restapi）
 
 复用 gerrit-restapi 的配置，字段见 gerrit-restapi 的 `references/config-schema.md`。多实例用
 `--system <name>` 切换，本 skill 透传该参数给所有 gerrit 子命令。
 
-## 2. 分析对象与规则（~/.bicv/gerrit_daily_analysis.json）
+## 2. 分析对象与规则（~/.bicv/gerrit_analysis.json）
 
 ```json
 {
@@ -38,11 +38,11 @@
 {
   "output_root": "~/.bicv/output",
   "skills": {
-    "gerrit_daily_analysis": "gerrit_daily_analysis"
+    "gerrit_analysis": "gerrit_analysis"
   }
 }
 ```
 
-- `output_root` 缺省 `~/.bicv/output`；`skills.gerrit_daily_analysis` 缺省 `gerrit_daily_analysis`。
-- 每次运行落到 `<output_root>/<skills.gerrit_daily_analysis>/<本地时间戳>/`。
+- `output_root` 缺省 `~/.bicv/output`；`skills.gerrit_analysis` 缺省 `gerrit_analysis`。
+- 每次运行落到 `<output_root>/<skills.gerrit_analysis>/<本地时间戳>/`。
 - 若 `~/.bicv/common.json` 不存在，先按缺省值创建目录并在开始时提示用户。

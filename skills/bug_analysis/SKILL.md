@@ -1,5 +1,5 @@
 ---
-name: bug_daily_analysis
+name: bug_analysis
 description: |
   分析测试组（配置的用户列表）在指定时间段内提交的缺陷、以及当前超期未处理的缺陷。
   支持禅道（zentao_bug）和 Redmine（redmine_issue）双系统，数据从数据库 ticket 库直查。
@@ -7,7 +7,7 @@ description: |
   当用户要「看测试组上周提了多少 bug」「检查有没有超期未处理的缺陷」时使用。
 ---
 
-# Bug 每日分析
+# Bug 分析
 
 本技能从 `ticket` 数据库直查禅道（`zentao_bug`）和 Redmine（`redmine_issue`）的缺陷数据，
 按配置的用户组统计提交情况和超期跟踪情况。
@@ -24,7 +24,7 @@ description: |
 ## 配置
 
 - MySQL 连接：`~/.bicv/mysql.json`（含 `ticket` 系统）
-- 分析配置：`~/.bicv/bug_daily_analysis.json`（overdue_days / zentao.users / redmine.users）
+- 分析配置：`~/.bicv/bug_analysis.json`（overdue_days / zentao.users / redmine.users）
 - 输出目录：`~/.bicv/common.json`
 
 配置引导详见 [references/config.md](references/config.md)。

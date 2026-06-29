@@ -229,9 +229,7 @@ class TestResolveOutputDir:
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
         (bicv / "common.json").write_text(
-            json.dumps(
-                {"output_root": str(tmp_path / "root"), "skills": {"bug_daily_analysis": "bda"}}
-            )
+            json.dumps({"output_root": str(tmp_path / "root"), "skills": {"bug_analysis": "bda"}})
         )
         with mock.patch.object(rc.Path, "home", return_value=tmp_path):
             d = rc.resolve_output_dir(None)
@@ -243,7 +241,7 @@ class TestResolveOutputDir:
         (bicv / "common.json").write_text(json.dumps({"output_root": str(tmp_path / "root")}))
         with mock.patch.object(rc.Path, "home", return_value=tmp_path):
             d = rc.resolve_output_dir(None)
-        assert d == tmp_path / "root" / "bug_daily_analysis"
+        assert d == tmp_path / "root" / "bug_analysis"
 
     def test_missing_output_root_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"

@@ -31,7 +31,7 @@ class TestLoadRunRoot:
         (tmp_path / ".bicv").mkdir()
         (tmp_path / ".bicv" / "common.json").write_text(
             json.dumps(
-                {"output_root": str(tmp_path / "out"), "skills": {"jenkins_daily_analysis": "jda"}}
+                {"output_root": str(tmp_path / "out"), "skills": {"jenkins_analysis": "jda"}}
             ),
             encoding="utf-8",
         )

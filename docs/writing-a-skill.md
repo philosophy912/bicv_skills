@@ -30,7 +30,7 @@ skills/<你的 skill 名>/
 - **`references/`** — 判定依据 / 参考文档：agent 编排时**读**的东西。如失败模式清单、API 协议、`config-schema.md`、安全确认矩阵。
 - **`assets/`** — 产物资源 / 模板：作为最终输出**模板或兜底素材**的东西。如报告骨架 `report-template.md`、中文字体兜底 `assets/fonts/`。
 
-> 例：`jenkins_daily_analysis` 把失败模式清单放 `references/`、输出样板放 `assets/report-template.md`；`bug_daily_analysis` 的字体兜底放 `assets/fonts/`。
+> 例：`jenkins_analysis` 把失败模式清单放 `references/`、输出样板放 `assets/report-template.md`；`bug_analysis` 的字体兜底放 `assets/fonts/`。
 
 `system_config.py` 直接从任一现有 skill 的 `scripts/` 复制，保持 4 份一致，**不要改它**。
 

@@ -23,8 +23,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-SKILL_KEY = "jenkins_daily_analysis"
-DEFAULT_SKILL_SUBDIR = "jenkins_daily_analysis"
+SKILL_KEY = "jenkins_analysis"
+DEFAULT_SKILL_SUBDIR = "jenkins_analysis"
 DEFAULT_OUTPUT_ROOT = "~/.bicv/output"
 # 这些 color 的 job 在滚动窗口内基本不会产生新构建，collect 默认跳过以减少无效调用：
 #   disabled —— job 被禁用；notbuilt —— 从未构建过。

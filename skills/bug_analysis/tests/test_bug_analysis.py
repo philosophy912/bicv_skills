@@ -52,7 +52,7 @@ class TestLoadAnalysisConfig:
         cfg_dict = _valid_config()
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(json.dumps(cfg_dict), encoding="utf-8")
+        (bicv / "bug_analysis.json").write_text(json.dumps(cfg_dict), encoding="utf-8")
         with mock.patch.object(bug_analysis.Path, "home", return_value=tmp_path):
             result = bug_analysis.load_analysis_config()
         assert result["overdue_days"] == 7
@@ -68,7 +68,7 @@ class TestLoadAnalysisConfig:
     def test_invalid_json_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text("{bad json", encoding="utf-8")
+        (bicv / "bug_analysis.json").write_text("{bad json", encoding="utf-8")
         with (
             mock.patch.object(bug_analysis.Path, "home", return_value=tmp_path),
             pytest.raises(bug_analysis.ConfigError, match="JSON 格式错误"),
@@ -78,7 +78,7 @@ class TestLoadAnalysisConfig:
     def test_missing_zentao_section_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps({"overdue_days": 7, "redmine": {"instance_id": 2, "users": ["x"]}}),
             encoding="utf-8",
         )
@@ -91,7 +91,7 @@ class TestLoadAnalysisConfig:
     def test_missing_redmine_section_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps({"overdue_days": 7, "zentao": {"instance_id": 1, "users": ["x"]}}),
             encoding="utf-8",
         )
@@ -104,7 +104,7 @@ class TestLoadAnalysisConfig:
     def test_missing_instance_id_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps(
                 {
                     "overdue_days": 7,
@@ -123,7 +123,7 @@ class TestLoadAnalysisConfig:
     def test_empty_users_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps(
                 {
                     "overdue_days": 7,
@@ -142,7 +142,7 @@ class TestLoadAnalysisConfig:
     def test_users_not_list_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps(
                 {
                     "overdue_days": 7,
@@ -161,7 +161,7 @@ class TestLoadAnalysisConfig:
     def test_invalid_overdue_days_string_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps(
                 {
                     "overdue_days": "abc",
@@ -180,7 +180,7 @@ class TestLoadAnalysisConfig:
     def test_zero_overdue_days_raises(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps(
                 {
                     "overdue_days": 0,
@@ -199,7 +199,7 @@ class TestLoadAnalysisConfig:
     def test_default_overdue_days(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps(
                 {
                     "zentao": {"instance_id": 1, "users": ["x"]},
@@ -215,7 +215,7 @@ class TestLoadAnalysisConfig:
     def test_users_whitespace_stripped(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
-        (bicv / "bug_daily_analysis.json").write_text(
+        (bicv / "bug_analysis.json").write_text(
             json.dumps(
                 {
                     "overdue_days": 7,
