@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Render bug analysis JSON into PNG charts.
 
-把 ``bug_analysis.py`` 的 submissions / overdue 子命令输出的 JSON 渲染成
-横向条形图与明细表格图。所有查询逻辑仍在 ``bug_analysis.py``，本脚本只负责
-「吃 JSON → 出图」，职责分离、不连数据库。
+把 ``bug_analysis.py`` 的 submissions / closures 子命令输出的 JSON 渲染成
+图表。所有查询逻辑仍在 ``bug_analysis.py``，本脚本只负责「吃 JSON → 出图」，
+职责分离、不连数据库。overdue 走纯表格（由 render_email 出），
+本脚本不画 overdue 图。
 
-四类图（按数据有无按需生成，可分页、不截断）：
-    submissions_by_user     缺陷提交 · 按提交人（横向条形图）
-    submissions_by_project  缺陷提交 · 按项目（横向条形图）
-    overdue_by_user         超期缺陷 · 按指派人计数（横向条形图）
-    overdue_detail          超期缺陷明细（表格图）
+四张图（按数据有无按需生成）：
+    submissions_by_user        缺陷提交 · 按提交人（横向条形图，分页不截断）
+    submissions_by_project     缺陷提交 · 按项目（饼图，前 9 + 其他）
+    severe_ratio               本周严重占比（饼图，严重 vs 非严重）
+    submissions_vs_closures    提交 vs 关闭（按人对比柱状图，需 --closures）
 
 用法：
-    render_charts.py --submissions sub.json --overdue ovd.json [--out <dir>]
+    render_charts.py --submissions sub.json [--closures cls.json] [--out <dir>]
 
 依赖：
     matplotlib（中文字体优先探测系统已装 CJK 字体，找不到回退
@@ -52,9 +53,10 @@ COMMON_CONFIG_NAME = "common.json"
 SKILL_NAME = "bug_analysis"
 DEFAULT_OUTPUT_SUBDIR = "bug_analysis"
 
-# 条形图/表格的分页阈值：超过则拆成多张图（不截断、不合并「其他」）
+# 条形图的分页阈值：超过则拆成多张图（不截断、不合并「其他」）
 BAR_PAGE_SIZE = 25
-TABLE_PAGE_SIZE = 30
+# 饼图最多直显项数，超出合并为「其他」（饼图项太多无法辨认）
+PIE_TOP_N = 9
 
 # 候选中文字体名（macOS / Windows / Linux 常见 CJK），按优先级探测
 FONT_CANDIDATES = [
@@ -194,6 +196,16 @@ def truncate_label(text: Any, max_chars: int = 18) -> str:
     return s if len(s) <= max_chars else s[: max_chars - 1] + "…"
 
 
+def top_n_with_other(counter: dict[str, int], n: int = PIE_TOP_N) -> list[tuple[str, int]]:
+    """取前 n 项，其余合并为「其他」（饼图项太多无法辨认时的标准处理）。"""
+    items = sort_desc(counter)
+    if len(items) <= n:
+        return items
+    head = items[:n]
+    other_total = sum(v for _, v in items[n:])
+    return head + [("其他", other_total)]
+
+
 def _short_window(data: dict[str, Any]) -> str:
     """从 submissions 的 window 提取 'MM-DD~MM-DD' 短串用于标题。"""
     window = data.get("window") or {}
@@ -244,34 +256,70 @@ def render_bar(
     return out_path
 
 
-def render_table(
-    rows: list[dict[str, Any]],
-    columns: list[tuple[str, str]],
+def render_pie(
+    data: list[tuple[str, int]],
     title: str,
     out_path: Path,
     font: str,
 ) -> Path:
-    """画一张明细表格图。columns = [(表头, 字段名)]。返回 out_path。"""
-    if not rows:
+    """画一张饼图（data = [(label, value)]，已排序/聚合好）。返回 out_path。"""
+    if not data:
         return out_path
     _apply_font(font)
-    cell_text = [[truncate_label(row.get(key, ""), 32) for _, key in columns] for row in rows]
-    col_labels = [header for header, _ in columns]
-    n = len(rows)
-
-    fig, ax = plt.subplots(figsize=(10, max(2.0, 0.34 * n + 1.6)))
-    ax.axis("off")
-    table = ax.table(
-        cellText=cell_text,
-        colLabels=col_labels,
-        loc="center",
-        cellLoc="left",
-        colLoc="left",
+    labels = [truncate_label(name, 12) for name, _ in data]
+    values = [int(v) for _, v in data]
+    total = sum(values)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.pie(
+        values,
+        labels=labels,
+        autopct=lambda p: f"{round(p * total / 100)}" if p >= 3 else "",
+        startangle=90,
+        textprops={"fontsize": 9},
     )
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1, 1.5)
-    ax.set_title(title, fontsize=13, loc="left")
+    ax.set_title(title, fontsize=13)
+    ax.axis("equal")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    return out_path
+
+
+def render_grouped_bar(
+    submitted: dict[str, int],
+    closed: dict[str, int],
+    title: str,
+    out_path: Path,
+    font: str,
+) -> Path:
+    """画提交 vs 关闭的分组对比柱状图（按人，纵向并列双柱）。返回 out_path。"""
+    users = sorted(
+        set(submitted) | set(closed),
+        key=lambda u: (-max(submitted.get(u, 0), closed.get(u, 0)), u),
+    )
+    if not users:
+        return out_path
+    _apply_font(font)
+    n = len(users)
+    x = list(range(n))
+    width = 0.38
+    sub_vals = [submitted.get(u, 0) for u in users]
+    cls_vals = [closed.get(u, 0) for u in users]
+
+    fig, ax = plt.subplots(figsize=(max(6.0, 0.8 * n + 2.0), 5))
+    ax.bar([xi - width / 2 for xi in x], sub_vals, width, label="提交", color="#4C78A8")
+    ax.bar([xi + width / 2 for xi in x], cls_vals, width, label="关闭", color="#F58518")
+    ax.set_xticks(x)
+    ax.set_xticklabels([truncate_label(u, 10) for u in users], fontsize=9, rotation=30, ha="right")
+    ax.set_title(title, fontsize=13)
+    ax.set_ylabel("数量", fontsize=10)
+    ax.legend()
+    ax.spines[["top", "right"]].set_visible(False)
+    for i, (s, c) in enumerate(zip(sub_vals, cls_vals, strict=True)):
+        if s:
+            ax.text(i - width / 2, s, f"{s}", ha="center", va="bottom", fontsize=8)
+        if c:
+            ax.text(i + width / 2, c, f"{c}", ha="center", va="bottom", fontsize=8)
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     plt.close(fig)
@@ -279,7 +327,7 @@ def render_table(
 
 
 # ---------------------------------------------------------------------------
-# Section renderers：把数据拆页、生成文件、返回路径列表
+# Emit helpers：清理旧页 + 生成文件，返回路径列表
 # ---------------------------------------------------------------------------
 
 
@@ -314,33 +362,32 @@ def _emit_bars(
     return paths
 
 
-def _emit_table(
-    rows: list[dict[str, Any]],
-    columns: list[tuple[str, str]],
+def _emit_single(
+    data: list[tuple[str, int]],
     title: str,
     out_dir: Path,
     stem: str,
     font: str,
-    page_size: int = TABLE_PAGE_SIZE,
+    draw: Any,
 ) -> list[str]:
-    """把明细行分页、逐页画表格图，返回生成的文件路径列表。"""
+    """画单张图（饼图不分页）；data 为空返回 []。draw 是 render_pie 等绘图函数。"""
     _clear_old_pages(out_dir, stem)
-    pages = paginate(rows, page_size)
-    paths: list[str] = []
-    total = len(pages)
-    for idx, page in enumerate(pages, start=1):
-        suffix = f"_p{idx}" if total > 1 else ""
-        out_path = out_dir / f"{stem}{suffix}.png"
-        page_title = title if total <= 1 else f"{title} ({idx}/{total})"
-        render_table(page, columns, page_title, out_path, font)
-        paths.append(str(out_path))
-    return paths
+    if not data:
+        return []
+    out_path = out_dir / f"{stem}.png"
+    draw(data, title, out_path, font)
+    return [str(out_path)]
+
+
+# ---------------------------------------------------------------------------
+# Section renderers：把数据拆页、生成文件、返回路径列表
+# ---------------------------------------------------------------------------
 
 
 def render_submissions(
     data: dict[str, Any], out_dir: Path, font: str, date_tag: str
 ) -> dict[str, list[str]]:
-    """渲染 submissions 数据：按人 + 按项目两张条形图（合并禅道/Redmine）。"""
+    """渲染 submissions：按人条形图 + 按项目饼图 + 严重占比饼图（合并禅道/Redmine）。"""
     charts: dict[str, list[str]] = {}
     zt = data.get("zentao") or {}
     rm = data.get("redmine") or {}
@@ -359,83 +406,68 @@ def render_submissions(
 
     by_project = merge_counter(zt.get("by_project"), rm.get("by_project"))
     if by_project:
-        charts["submissions_by_project"] = _emit_bars(
-            by_project,
+        charts["submissions_by_project"] = _emit_single(
+            top_n_with_other(by_project),
             f"缺陷提交 · 按项目{suffix}",
             out_dir,
             f"bug_submissions_by_project_{date_tag}",
             font,
+            render_pie,
         )
+
+    # 严重占比饼：本周提交里严重 vs 非严重
+    severe_total = int((zt.get("severe") or {}).get("total", 0)) + int(
+        (rm.get("severe") or {}).get("total", 0)
+    )
+    sub_total = int(zt.get("total", 0)) + int(rm.get("total", 0))
+    if sub_total > 0:
+        non_severe = sub_total - severe_total
+        ratio_data: list[tuple[str, int]] = []
+        if severe_total:
+            ratio_data.append(("严重", severe_total))
+        if non_severe:
+            ratio_data.append(("非严重", non_severe))
+        if ratio_data:
+            charts["severe_ratio"] = _emit_single(
+                ratio_data,
+                f"本周严重占比{suffix}",
+                out_dir,
+                f"bug_severe_ratio_{date_tag}",
+                font,
+                render_pie,
+            )
     return charts
 
 
-def _overdue_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
-    """合并禅道/Redmine 超期明细为统一行结构（含缺陷 ID），按超期天数降序。
-
-    缺陷 ID 带系统前缀（Z- 禅道 / R- Redmine），避免两系统数字 id 混淆。
-    """
-    specs = [
-        ("zentao", "Z", "id", "projectName", "module", "assignedTo"),
-        ("redmine", "R", "issue_id", "project_name", "subject", "assigned_to_name"),
-    ]
-    rows: list[dict[str, Any]] = []
-    for sys_key, prefix, id_key, proj_key, mod_key, assign_key in specs:
-        section = data.get(sys_key) or {}
-        items = section.get("bugs") or section.get("issues") or []
-        for item in items:
-            raw_id = item.get(id_key, "")
-            bug_id = f"{prefix}-{raw_id}" if raw_id not in ("", None) else ""
-            days = item.get("days_since_action", "")
-            try:
-                days_val = int(days)
-            except (TypeError, ValueError):
-                days_val = 0
-            rows.append(
-                {
-                    "id": bug_id,
-                    "project": item.get(proj_key, ""),
-                    "module": item.get(mod_key, ""),
-                    "assignee": item.get(assign_key, ""),
-                    "days": days_val,
-                }
-            )
-    rows.sort(key=lambda r: (-r["days"], str(r["assignee"]), str(r["project"])))
-    return rows
-
-
-def render_overdue(
-    data: dict[str, Any], out_dir: Path, font: str, date_tag: str
+def render_vs_closures(
+    sub_data: dict[str, Any] | None,
+    cls_data: dict[str, Any] | None,
+    out_dir: Path,
+    font: str,
+    date_tag: str,
 ) -> dict[str, list[str]]:
-    """渲染 overdue 数据：按指派人计数条形图 + 明细表格图。"""
+    """渲染提交 vs 关闭对比柱状图（按人，合并禅道/Redmine）。"""
     charts: dict[str, list[str]] = {}
-    zt = data.get("zentao") or {}
-    rm = data.get("redmine") or {}
-
-    by_user = merge_counter(zt.get("by_user"), rm.get("by_user"))
-    if by_user:
-        charts["overdue_by_user"] = _emit_bars(
-            by_user,
-            "超期缺陷 · 按指派人",
+    sub_zt = ((sub_data or {}).get("zentao")) or {}
+    sub_rm = ((sub_data or {}).get("redmine")) or {}
+    cls_zt = ((cls_data or {}).get("zentao")) or {}
+    cls_rm = ((cls_data or {}).get("redmine")) or {}
+    submitted = merge_counter(sub_zt.get("by_user"), sub_rm.get("by_user"))
+    closed = merge_counter(cls_zt.get("by_user"), cls_rm.get("by_user"))
+    if submitted or closed:
+        stem = f"bug_submissions_vs_closures_{date_tag}"
+        _clear_old_pages(out_dir, stem)
+        out_path = out_dir / f"{stem}.png"
+        render_grouped_bar(submitted, closed, "提交 vs 关闭（按人）", out_path, font)
+        charts["submissions_vs_closures"] = [str(out_path)]
+    if closed:
+        charts["closures_by_user"] = _emit_single(
+            top_n_with_other(closed),
+            "本周关闭 · 按关闭人",
             out_dir,
-            f"bug_overdue_by_user_{date_tag}",
+            f"bug_closures_by_user_{date_tag}",
             font,
-        )
-
-    rows = _overdue_rows(data)
-    if rows:
-        charts["overdue_detail"] = _emit_table(
-            rows,
-            [
-                ("缺陷ID", "id"),
-                ("项目", "project"),
-                ("模块/主题", "module"),
-                ("指派人", "assignee"),
-                ("超期天数", "days"),
-            ],
-            "超期缺陷明细",
-            out_dir,
-            f"bug_overdue_detail_{date_tag}",
-            font,
+            render_pie,
         )
     return charts
 
@@ -470,13 +502,13 @@ def cmd_render(args: argparse.Namespace) -> int:
         print(f"输出目录错误: {exc}", file=sys.stderr)
         return 1
 
-    if not args.submissions and not args.overdue:
-        print("错误: 至少需要 --submissions 或 --overdue 之一", file=sys.stderr)
+    if not args.submissions and not args.closures:
+        print("错误: 至少需要 --submissions 或 --closures 之一", file=sys.stderr)
         return 1
 
     try:
         sub_data = read_json_file(args.submissions) if args.submissions else None
-        ovd_data = read_json_file(args.overdue) if args.overdue else None
+        cls_data = read_json_file(args.closures) if args.closures else None
     except RenderError as exc:
         print(f"输入错误: {exc}", file=sys.stderr)
         return 1
@@ -486,8 +518,8 @@ def cmd_render(args: argparse.Namespace) -> int:
     try:
         if sub_data:
             charts.update(render_submissions(sub_data, out_dir, font, date_tag))
-        if ovd_data:
-            charts.update(render_overdue(ovd_data, out_dir, font, date_tag))
+        if cls_data:
+            charts.update(render_vs_closures(sub_data, cls_data, out_dir, font, date_tag))
     except RenderError as exc:
         print(f"渲染失败: {exc}", file=sys.stderr)
         return 1
@@ -504,10 +536,12 @@ def cmd_render(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     """构建 CLI 参数解析器。"""
     parser = argparse.ArgumentParser(
-        description="把 bug_analysis 的 JSON 渲染成 PNG 图表（条形图 + 明细表）",
+        description="把 bug_analysis 的 JSON 渲染成 PNG 图表（条形图 + 饼图 + 对比柱）",
     )
     parser.add_argument("--submissions", help="submissions 子命令输出的 JSON 文件路径")
-    parser.add_argument("--overdue", help="overdue 子命令输出的 JSON 文件路径")
+    parser.add_argument(
+        "--closures", help="closures 子命令输出的 JSON 文件路径（提交vs关闭对比图）"
+    )
     parser.add_argument(
         "--out",
         help="输出目录（默认: common.json 的 output_root/bug_analysis）",

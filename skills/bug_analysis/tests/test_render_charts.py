@@ -1,5 +1,5 @@
-"""Tests for render_charts.py — font resolution, pagination, section
-renderers, drawing primitives, and the CLI envelope."""
+"""Tests for render_charts.py — font resolution, pagination, pie/grouped-bar
+primitives, section renderers, and the CLI envelope."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ def _submissions_payload() -> dict:
             "total": 3,
             "by_user": {"郭礼香": 2, "周嘉敏": 1},
             "by_project": {"B30X-F09": 2, "N53TB": 1},
+            "severe": {"total": 1, "bugs": []},
             "bugs": [],
         },
         "redmine": {
@@ -32,37 +33,29 @@ def _submissions_payload() -> dict:
             "total": 1,
             "by_user": {"郭礼香": 1},
             "by_project": {"B30X-F09": 1},
+            "severe": {"total": 0, "issues": []},
             "issues": [],
         },
     }
 
 
-def _overdue_payload() -> dict:
+def _closures_payload() -> dict:
     return {
-        "generated_at": "2026-06-26 10:00:00",
-        "overdue_days": 7,
+        "window": {"start": "2026-06-22 00:00:00", "end": "2026-06-26 23:59:59"},
         "zentao": {
             "instance_id": 1,
             "total": 2,
             "by_user": {"郭礼香": 2},
-            "bugs": [
-                {
-                    "id": 12345,
-                    "projectName": "B30X-F09",
-                    "module": "carlink",
-                    "assignedTo": "郭礼香",
-                    "days_since_action": 16,
-                },
-                {
-                    "id": 12346,
-                    "projectName": "N53TB",
-                    "module": "AVM",
-                    "assignedTo": "郭礼香",
-                    "days_since_action": 10,
-                },
-            ],
+            "by_project": {"B30X-F09": 2},
+            "bugs": [],
         },
-        "redmine": {"instance_id": 2, "total": 0, "by_user": {}, "issues": []},
+        "redmine": {
+            "instance_id": 2,
+            "total": 0,
+            "by_user": {},
+            "by_project": {},
+            "issues": [],
+        },
     }
 
 
@@ -109,50 +102,18 @@ class TestPureHelpers:
         assert rc._short_window({}) == ""
 
 
-# ---------------------------------------------------------------------------
-# Overdue rows merging
-# ===========================================================================
+class TestTopNWithOther:
+    def test_under_n_no_merge(self):
+        assert rc.top_n_with_other({"a": 2, "b": 1}, 9) == [("a", 2), ("b", 1)]
 
+    def test_over_n_merges_other(self):
+        counter = {f"p{i}": 10 - i for i in range(12)}  # 12 项
+        out = rc.top_n_with_other(counter, 9)
+        assert len(out) == 10  # 9 + 其他
+        assert out[-1] == ("其他", sum(10 - i for i in range(9, 12)))
 
-class TestOverdueRows:
-    def test_merge_and_sort_desc(self):
-        rows = rc._overdue_rows(_overdue_payload())
-        assert [r["days"] for r in rows] == [16, 10]
-        assert rows[0]["module"] == "carlink"
-        assert rows[0]["id"] == "Z-12345"
-
-    def test_non_numeric_days_become_zero(self):
-        data = {
-            "zentao": {
-                "bugs": [
-                    {
-                        "projectName": "P",
-                        "module": "M",
-                        "assignedTo": "A",
-                        "days_since_action": "N/A",
-                    }
-                ]
-            }
-        }
-        assert rc._overdue_rows(data)[0]["days"] == 0
-
-    def test_redmine_uses_subject_as_module(self):
-        data = {
-            "redmine": {
-                "issues": [
-                    {
-                        "issue_id": 99,
-                        "project_name": "P",
-                        "subject": "主题",
-                        "assigned_to_name": "A",
-                        "days_since_action": 5,
-                    }
-                ]
-            }
-        }
-        rows = rc._overdue_rows(data)
-        assert rows[0]["module"] == "主题"
-        assert rows[0]["id"] == "R-99"
+    def test_empty(self):
+        assert rc.top_n_with_other({}, 9) == []
 
 
 # ---------------------------------------------------------------------------
@@ -287,21 +248,38 @@ class TestRenderBar:
             assert rc.render_bar([], "t", out, "f") == out
 
 
-class TestRenderTable:
+class TestRenderPie:
     def test_calls_savefig_and_returns_path(self, tmp_path):
         fig, ax = mock.MagicMock(), mock.MagicMock()
-        ax.table.return_value = mock.MagicMock()
         with mock.patch.object(rc, "plt") as m_plt:
             m_plt.subplots.return_value = (fig, ax)
-            out = tmp_path / "tbl.png"
-            res = rc.render_table([{"a": 1}], [("A", "a")], "标题", out, "PingFang SC")
+            out = tmp_path / "pie.png"
+            res = rc.render_pie([("A", 3), ("B", 1)], "标题", out, "f")
         assert res == out
+        ax.pie.assert_called_once()
         fig.savefig.assert_called_once_with(out, dpi=150)
 
-    def test_empty_rows_returns_path(self, tmp_path):
+    def test_empty_data_returns_path(self, tmp_path):
         out = tmp_path / "x.png"
         with mock.patch.object(rc, "plt"):
-            assert rc.render_table([], [("A", "a")], "t", out, "f") == out
+            assert rc.render_pie([], "t", out, "f") == out
+
+
+class TestRenderGroupedBar:
+    def test_calls_savefig_and_returns_path(self, tmp_path):
+        fig, ax = mock.MagicMock(), mock.MagicMock()
+        with mock.patch.object(rc, "plt") as m_plt:
+            m_plt.subplots.return_value = (fig, ax)
+            out = tmp_path / "g.png"
+            res = rc.render_grouped_bar({"A": 3}, {"A": 1, "B": 2}, "标题", out, "f")
+        assert res == out
+        assert ax.bar.call_count == 2  # 提交 + 关闭两组
+        fig.savefig.assert_called_once_with(out, dpi=150)
+
+    def test_empty_returns_path_without_drawing(self, tmp_path):
+        out = tmp_path / "x.png"
+        with mock.patch.object(rc, "plt"):
+            assert rc.render_grouped_bar({}, {}, "t", out, "f") == out
 
 
 # ---------------------------------------------------------------------------
@@ -349,14 +327,24 @@ class TestEmitBars:
         assert not (tmp_path / "stem_p2.png").exists()
 
 
-class TestEmitTable:
-    def test_paginates_rows(self, tmp_path):
-        rows = [{"project": f"P{i}", "module": "m", "assignee": "a", "days": i} for i in range(40)]
-        with mock.patch.object(rc, "render_table", return_value=Path("x")) as m:
-            paths = rc._emit_table(rows, [("P", "project")], "t", tmp_path, "stem", "f")
-        assert len(paths) == 2  # 40 / 30
-        assert paths[0].endswith("stem_p1.png")
-        assert m.call_count == 2
+class TestEmitSingle:
+    def test_empty_returns_empty(self, tmp_path):
+        draw = mock.MagicMock()
+        assert rc._emit_single([], "t", tmp_path, "stem", "f", draw) == []
+        draw.assert_not_called()
+
+    def test_non_empty_calls_draw(self, tmp_path):
+        draw = mock.MagicMock(return_value=Path("x"))
+        paths = rc._emit_single([("A", 1)], "t", tmp_path, "stem", "f", draw)
+        assert paths == [str(tmp_path / "stem.png")]
+        draw.assert_called_once()
+
+    def test_clears_old_pages(self, tmp_path):
+        (tmp_path / "stem.png").write_text("old")
+        (tmp_path / "stem_p1.png").write_text("old")
+        draw = mock.MagicMock(return_value=Path("x"))
+        rc._emit_single([("A", 1)], "t", tmp_path, "stem", "f", draw)
+        assert not (tmp_path / "stem_p1.png").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -365,30 +353,64 @@ class TestEmitTable:
 
 
 class TestSectionRenderers:
-    def test_submissions_emits_both(self, tmp_path):
-        with mock.patch.object(rc, "render_bar", return_value=Path("x")) as m_bar:
+    def test_submissions_emits_three(self, tmp_path):
+        with (
+            mock.patch.object(rc, "render_bar", return_value=Path("x")),
+            mock.patch.object(rc, "render_pie", return_value=Path("y")),
+        ):
             charts = rc.render_submissions(
                 _submissions_payload(), tmp_path, "PingFang SC", "20260626"
             )
-        assert set(charts) == {"submissions_by_user", "submissions_by_project"}
-        assert m_bar.call_count == 2
+        assert {
+            "submissions_by_user",
+            "submissions_by_project",
+            "severe_ratio",
+        } <= set(charts)
 
     def test_submissions_empty_skips(self, tmp_path):
-        with mock.patch.object(rc, "render_bar") as m_bar:
+        with (
+            mock.patch.object(rc, "render_bar") as m_bar,
+            mock.patch.object(rc, "render_pie") as m_pie,
+        ):
             charts = rc.render_submissions(
                 {"window": {}, "zentao": {"by_user": {}}, "redmine": {}}, tmp_path, "f", "d"
             )
         assert charts == {}
         m_bar.assert_not_called()
+        m_pie.assert_not_called()
 
-    def test_overdue_emits_both(self, tmp_path):
+    def test_submissions_severe_ratio_skipped_when_zero_total(self, tmp_path):
+        # total=0 时不画严重占比饼
+        data = {
+            "window": {},
+            "zentao": {"by_user": {"A": 1}, "total": 0, "severe": {"total": 0}},
+            "redmine": {},
+        }
         with (
             mock.patch.object(rc, "render_bar", return_value=Path("x")),
-            mock.patch.object(rc, "render_table", return_value=Path("y")) as m_tbl,
+            mock.patch.object(rc, "render_pie", return_value=Path("y")),
         ):
-            charts = rc.render_overdue(_overdue_payload(), tmp_path, "f", "20260626")
-        assert "overdue_by_user" in charts and "overdue_detail" in charts
-        assert m_tbl.call_count == 1
+            charts = rc.render_submissions(data, tmp_path, "f", "d")
+        # total=0 → severe_ratio 不出；by_user 有值但 by_project 空 → 只出 by_user
+        assert "severe_ratio" not in charts
+        assert "submissions_by_user" in charts
+
+    def test_vs_closures_emits(self, tmp_path):
+        with (
+            mock.patch.object(rc, "render_grouped_bar", return_value=Path("x")),
+            mock.patch.object(rc, "render_pie", return_value=Path("y")),
+        ):
+            charts = rc.render_vs_closures(
+                _submissions_payload(), _closures_payload(), tmp_path, "f", "20260626"
+            )
+        assert "submissions_vs_closures" in charts
+        assert "closures_by_user" in charts
+
+    def test_vs_closures_empty_skips(self, tmp_path):
+        with mock.patch.object(rc, "render_grouped_bar") as m:
+            charts = rc.render_vs_closures(None, None, tmp_path, "f", "d")
+        assert charts == {}
+        m.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -419,7 +441,7 @@ class TestReadJson:
 
 
 def _ns(**kw) -> argparse.Namespace:
-    base = {"submissions": None, "overdue": None, "out": None}
+    base = {"submissions": None, "closures": None, "out": None}
     base.update(kw)
     return argparse.Namespace(**base)
 
@@ -464,6 +486,7 @@ class TestCmdRender:
             mock.patch.object(rc, "resolve_font", return_value="PingFang SC"),
             mock.patch.object(rc, "resolve_output_dir", return_value=tmp_path),
             mock.patch.object(rc, "render_bar", return_value=Path("x")),
+            mock.patch.object(rc, "render_pie", return_value=Path("y")),
         ):
             code = rc.cmd_render(_ns(submissions=str(sub)))
         assert code == 0
@@ -471,25 +494,27 @@ class TestCmdRender:
         assert "submissions_by_user" in out["charts"]
         assert out["output_dir"] == str(tmp_path)
 
-    def test_success_both_sources(self, tmp_path, capsys):
+    def test_success_with_closures(self, tmp_path, capsys):
         sub = tmp_path / "s.json"
         sub.write_text(json.dumps(_submissions_payload()))
-        ovd = tmp_path / "o.json"
-        ovd.write_text(json.dumps(_overdue_payload()))
+        cls = tmp_path / "c.json"
+        cls.write_text(json.dumps(_closures_payload()))
         with (
             mock.patch.object(rc, "resolve_font", return_value="f"),
             mock.patch.object(rc, "resolve_output_dir", return_value=tmp_path),
             mock.patch.object(rc, "render_bar", return_value=Path("x")),
-            mock.patch.object(rc, "render_table", return_value=Path("y")),
+            mock.patch.object(rc, "render_pie", return_value=Path("y")),
+            mock.patch.object(rc, "render_grouped_bar", return_value=Path("z")),
         ):
-            code = rc.cmd_render(_ns(submissions=str(sub), overdue=str(ovd)))
+            code = rc.cmd_render(_ns(submissions=str(sub), closures=str(cls)))
         assert code == 0
         charts = json.loads(capsys.readouterr().out)["charts"]
         assert {
             "submissions_by_user",
             "submissions_by_project",
-            "overdue_by_user",
-            "overdue_detail",
+            "severe_ratio",
+            "submissions_vs_closures",
+            "closures_by_user",
         } <= set(charts)
 
 
@@ -501,6 +526,7 @@ class TestMain:
             mock.patch.object(rc, "resolve_font", return_value="f"),
             mock.patch.object(rc, "resolve_output_dir", return_value=tmp_path),
             mock.patch.object(rc, "render_bar", return_value=Path("x")),
+            mock.patch.object(rc, "render_pie", return_value=Path("y")),
         ):
             assert rc.main(["--submissions", str(sub), "--out", str(tmp_path)]) == 0
 
@@ -515,5 +541,5 @@ class TestMain:
 
 
 def test_build_parser_registers_all_args():
-    ns = rc.build_parser().parse_args(["--submissions", "a", "--overdue", "b", "--out", "c"])
-    assert ns.submissions == "a" and ns.overdue == "b" and ns.out == "c"
+    ns = rc.build_parser().parse_args(["--submissions", "a", "--closures", "b", "--out", "c"])
+    assert ns.submissions == "a" and ns.closures == "b" and ns.out == "c"
