@@ -88,6 +88,13 @@ class TestMergeBuilds:
         report.merge_builds(builds, analyses)
         assert builds[0]["category"] == "unknown"
 
+    def test_ignored_category_preserved(self):
+        # ignored（用户主动中止 / 配置忽略）是合法判定，不归一化为 unknown
+        builds = [_build("J", 1)]
+        analyses = {("J", 1): {"category": "ignored", "evidence": "Aborted by 张三"}}
+        report.merge_builds(builds, analyses)
+        assert builds[0]["category"] == "ignored"
+
 
 # ===================================================================
 # pick_representatives
@@ -355,6 +362,39 @@ class TestCmdReport:
         assert rep["summary"]["by_category"]["unknown"] == 1  # K 缺判定
         assert rep["nodes"]["total"] == 2
         assert (tmp_path / "report.md").exists()
+
+    def test_ignored_excluded_from_summary(self, tmp_path, capsys):
+        # ignored（用户中止 / 配置忽略）不计入 total_failed / by_category，但仍保留在 builds
+        builds = [_build("ABORT", 1), _build("SCM", 2)]
+        analyses = [
+            {
+                "job": "ABORT",
+                "number": 1,
+                "category": "ignored",
+                "confidence": "high",
+                "evidence": "Aborted by 张三",
+                "log_excerpt": "",
+            },
+            {
+                "job": "SCM",
+                "number": 2,
+                "category": "scm",
+                "confidence": "high",
+                "evidence": "ev",
+                "log_excerpt": "ex",
+            },
+        ]
+        self._setup(tmp_path, builds, analyses)
+        args = mock.MagicMock(rundir=str(tmp_path), analyses=None, cli=None, system=None)
+        rc = report.cmd_report(args)
+        assert rc == 0
+        rep = json.loads((tmp_path / "report.json").read_text("utf-8"))
+        s = rep["summary"]
+        assert s["total_failed"] == 1  # 仅 scm，ignored 不计入
+        assert s["by_category"] == {"scm": 1, "compile": 0, "other": 0, "unknown": 0}
+        # ignored 仍保留在 report.json 的 builds 里（category == "ignored"）
+        cats = {b["job"]: b["category"] for b in rep["builds"]}
+        assert cats == {"ABORT": "ignored", "SCM": "scm"}
 
     def test_no_cli_no_nodes(self, tmp_path, capsys):
         builds = [_build("J", 1)]
