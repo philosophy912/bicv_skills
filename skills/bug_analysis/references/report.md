@@ -28,7 +28,7 @@ python3 scripts/render_email.py \
 ```bash
 python3 ~/.claude/skills/email/scripts/email_api.py send \
   --to <to> \
-  --subject "缺陷分析周报 <日期>" \
+  --subject "【缺陷分析报告 2026-06-22~2026-06-28】" \
   --body @email_<日期>.html --html --system <email 实例>
 ```
 

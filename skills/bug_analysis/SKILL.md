@@ -62,12 +62,12 @@ description: |
 5. `bug_analysis.py closures --since ... --until ...` → `cls.json`（本周关闭）。
 6. `render_charts.py --submissions sub.json --closures cls.json` → `charts.json`（+ PNG 图）。
 7. `render_email.py --submissions sub.json --overdue ovd.json --severe sev.json --closures cls.json --charts charts.json` → `email_<日期>.html`（自包含，图已 base64 内嵌）。
-8. 从 `~/.bicv/bug_analysis.json` 读 `recipients.to`，调 email skill 发送：
+8. 从 `~/.bicv/bug_analysis.json` 读 `recipients.to`，调 email skill 发送（标题用窗口日期 `【缺陷分析报告 yyyy-mm-dd~yyyy-mm-dd】`）：
 
 ```bash
 python3 ~/.claude/skills/email/scripts/email_api.py send \
   --to <to> \
-  --subject "缺陷分析周报 <日期>" \
+  --subject "【缺陷分析报告 2026-06-22~2026-06-28】" \
   --body @<email_日期.html> \
   --html \
   --system <email.json 里的实例名>

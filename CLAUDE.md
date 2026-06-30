@@ -66,6 +66,23 @@ ruff check skills/
 ruff format skills/ --check
 ```
 
+## 提交与推送
+
+提交信息用 `coccm` 生成（不要手写 commit message），用户已配置 alias：
+
+```bash
+alias cmy="coccm commit -y"
+alias cma="coccm commit --amend -y"
+alias commit="git add . && cmy && git pr && git psa"
+```
+
+- **普通提交**：`git add <files>` → `cmy`（= `coccm commit -y`，自动生成 commit message）。
+- **追加修改到上一次提交**：`cma`（= `coccm commit --amend -y`）。
+- 推送到 GitHub：`cmy` 之后直接 `git push`（用户惯用 `git push` 推送）。
+- 一次性提交+PR+推送：`commit`（add 全部 → cmy → git pr → git psa）。
+
+注意：`commit` alias 会 `git add .` 把工作区所有改动暂存（含会话前已存在的无关改动，如 jenkins_analysis 的本地修改），提交前先确认 `git status` 范围。默认当前分支为 main，直接推送 main。
+
 ## 安装方式（用户侧，非开发）
 
 ```bash

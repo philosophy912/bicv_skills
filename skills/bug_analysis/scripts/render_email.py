@@ -273,12 +273,39 @@ def _esc(value: Any) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _html_table(headers: list[str], rows: list[tuple]) -> str:
+# 表头文本 → 列宽 class（table-layout:fixed 下控制各列宽度）
+_COL_WIDTH = {
+    "排名": "w-rank",
+    "缺陷ID": "w-id",
+    "项目": "w-proj",
+    "标题": "w-title",
+    "严重程度": "w-sev",
+    "指派人": "w-who",
+    "关闭人": "w-who",
+    "提交人": "w-who",
+    "最后修改时间": "w-when",
+    "超期天数": "w-days",
+    "数量": "w-days",
+    "占比": "w-days",
+}
+
+
+def _html_table(headers: list[str], rows: list[tuple], wrap_idx: int | None = None) -> str:
+    """渲染表格。wrap_idx 指定哪一列允许换行（长文本如标题），其余列 nowrap 不挤。"""
     if not rows:
         return "<p>（无）</p>"
+    colgroup = "".join(f'<col class="{_COL_WIDTH.get(h, "w-title")}">' for h in headers)
     head = "".join(f"<th>{_esc(h)}</th>" for h in headers)
-    body = "".join("<tr>" + "".join(f"<td>{_esc(c)}</td>" for c in r) + "</tr>" for r in rows)
-    return f"<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>"
+
+    def _cell(i: int, c: Any) -> str:
+        cls = ' class="wrap"' if i == wrap_idx else ""
+        return f"<td{cls}>{_esc(c)}</td>"
+
+    body = "".join("<tr>" + "".join(_cell(i, c) for i, c in enumerate(r)) + "</tr>" for r in rows)
+    return (
+        f"<table><colgroup>{colgroup}</colgroup><thead><tr>{head}</tr></thead>"
+        f"<tbody>{body}</tbody></table>"
+    )
 
 
 def _img_inline(path: str) -> str:
@@ -303,9 +330,12 @@ _HEADER_STYLE = (
     "<style>"
     "body{font-family:-apple-system,'Segoe UI',sans-serif;color:#222;max-width:900px;margin:auto}"
     "h1{font-size:20px}h2{font-size:16px;border-bottom:2px solid #4C78A8;padding-bottom:4px;margin-top:24px}"
-    "table{border-collapse:collapse;margin:8px 0 16px;font-size:13px;width:100%}"
+    "table{border-collapse:collapse;margin:8px 0 16px;font-size:13px;width:100%;table-layout:fixed}"
     "th{background:#4C78A8;color:#fff;text-align:left}"
-    "td,th{border:1px solid #ccc;padding:4px 8px}"
+    "td,th{border:1px solid #ccc;padding:4px 8px;white-space:nowrap;vertical-align:top;overflow:hidden;text-overflow:ellipsis}"
+    "td.wrap{white-space:normal;overflow:visible;text-overflow:clip}"
+    "col.w-id{width:80px}col.w-proj{width:120px}col.w-title{width:40%}col.w-sev{width:60px}"
+    "col.w-who{width:110px}col.w-when{width:140px}col.w-days{width:60px}col.w-rank{width:50px}"
     "img{max-width:100%;height:auto;margin:8px 0}"
     ".zero{color:#c00}"
     "</style>"
@@ -354,7 +384,7 @@ def _section_severe_this_week(data: dict[str, Any], charts_map: dict[str, list[s
         [
             "<h2>二、严重-本周</h2>",
             f"<p>本周提交的严重缺陷 <b>{total}</b> 条（禅道 {zt_severe} / Redmine {rm_severe}）。</p>",
-            _html_table(["缺陷ID", "项目", "标题", "提交人", "严重程度", "状态"], rows),
+            _html_table(["缺陷ID", "项目", "标题", "提交人", "严重程度", "状态"], rows, wrap_idx=2),
             _section_images(charts_map, ["severe_ratio"]),
         ]
     )
@@ -370,7 +400,7 @@ def _section_severe_open(data: dict[str, Any]) -> str:
             "<h2>三、严重-本组未关闭</h2>",
             f"<p>本组提交的、当前未关闭的严重缺陷 <b>{total}</b> 条"
             f"（禅道 {zt.get('total', 0)} / Redmine {rm.get('total', 0)}）。</p>",
-            _html_table(["缺陷ID", "项目", "标题", "提交人", "严重程度", "状态"], rows),
+            _html_table(["缺陷ID", "项目", "标题", "提交人", "严重程度", "状态"], rows, wrap_idx=2),
         ]
     )
 
@@ -395,10 +425,11 @@ def _section_overdue(data: dict[str, Any]) -> str:
     return "".join(
         [
             "<h2>四、跟踪不及时</h2>",
-            f"<p>当前超期 <b>{total}</b> 条（指派给本组后 {days} 天无 action，已过滤停用项目）。</p>",
+            f"<p>当前超期 <b>{total}</b> 条（指派给本组后超过 {days} 天无 action 的缺陷，已过滤停用项目）。</p>",
             _html_table(
                 ["缺陷ID", "项目", "标题", "严重程度", "指派人", "最后修改时间", "超期天数"],
                 rows,
+                wrap_idx=2,
             ),
         ]
     )
