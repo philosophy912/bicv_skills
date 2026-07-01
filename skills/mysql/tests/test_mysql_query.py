@@ -180,6 +180,12 @@ class TestReadSqlFile:
         f.write_text("SELECT 1;", encoding="utf-8")
         assert mysql_query.read_sql_file(f"@{f}") == "SELECT 1;"
 
+    def test_at_prefix_reads_file_with_utf8_bom(self, tmp_path):
+        # Windows PowerShell 保存的 SQL 文件常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        f = tmp_path / "q.sql"
+        f.write_text("﻿SELECT 1;", encoding="utf-8")
+        assert mysql_query.read_sql_file(f"@{f}") == "SELECT 1;"
+
     def test_missing_file_raises_service_error(self):
         with pytest.raises(ServiceError) as exc_info:
             mysql_query.read_sql_file("@/no/such/path/here.sql")

@@ -96,7 +96,7 @@ def _load_common_config() -> dict[str, Any]:
             f"配置文件不存在: {path}\n请创建 ~/.bicv/{COMMON_CONFIG_NAME}，至少包含 output_root"
         )
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise RenderError(f"配置文件 JSON 格式错误: {path}\n{exc}") from exc
 
@@ -483,7 +483,7 @@ def read_json_file(path_str: str) -> dict[str, Any]:
     if not path.exists():
         raise RenderError(f"输入文件不存在: {path}")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise RenderError(f"JSON 解析失败: {path}\n{exc}") from exc
 

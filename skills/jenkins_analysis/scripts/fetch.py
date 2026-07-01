@@ -69,7 +69,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         print(f"error: builds.json not found at {builds_file}", file=sys.stderr)
         return 1
     os.makedirs(logdir, exist_ok=True)
-    with open(builds_file, encoding="utf-8") as fh:
+    with open(builds_file, encoding="utf-8-sig") as fh:
         data = json.load(fh)
     builds = data.get("builds", [])
     if not isinstance(builds, list):

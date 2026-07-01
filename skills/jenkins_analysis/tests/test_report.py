@@ -37,6 +37,16 @@ class TestLoadAnalyses:
         out = report.load_analyses(str(p))
         assert set(out) == {("J", 1), ("K", 2)}
 
+    def test_loads_entries_with_utf8_bom(self, tmp_path):
+        # Windows PowerShell 保存的 analyses.json 常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        p = tmp_path / "a.json"
+        p.write_text(
+            "﻿" + json.dumps([{"job": "J", "number": 1, "category": "scm"}]),
+            encoding="utf-8",
+        )
+        out = report.load_analyses(str(p))
+        assert list(out) == [("J", 1)]
+
     def test_non_list_raises(self, tmp_path):
         p = tmp_path / "a.json"
         p.write_text(json.dumps({"not": "list"}), encoding="utf-8")
@@ -414,6 +424,28 @@ class TestCmdReport:
         assert rc == 0
         rep = json.loads((tmp_path / "report.json").read_text("utf-8"))
         assert "nodes" not in rep
+
+    def test_reads_builds_json_with_utf8_bom(self, tmp_path):
+        # Windows PowerShell 保存的 builds.json 常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        (tmp_path / "builds.json").write_text(
+            "﻿"
+            + json.dumps(
+                {
+                    "generated_at": "t",
+                    "window": {"start": "s", "end": "e"},
+                    "system": "default",
+                    "since_hours": 24,
+                    "builds": [_build("J", 1)],
+                    "errors": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        args = mock.MagicMock(rundir=str(tmp_path), analyses=None, cli=None, system=None)
+        rc = report.cmd_report(args)
+        assert rc == 0
+        rep = json.loads((tmp_path / "report.json").read_text("utf-8"))
+        assert rep["summary"]["by_category"]["unknown"] == 1
 
     def test_missing_builds_json(self, tmp_path, capsys):
         args = mock.MagicMock(rundir=str(tmp_path), analyses=None, cli=None, system=None)

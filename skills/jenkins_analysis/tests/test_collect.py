@@ -40,6 +40,21 @@ class TestLoadRunRoot:
         assert root == str(tmp_path / "out")
         assert subdir == "jda"
 
+    def test_reads_config_with_utf8_bom(self, tmp_path):
+        # Windows PowerShell 保存的 common.json 常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        (tmp_path / ".bicv").mkdir()
+        (tmp_path / ".bicv" / "common.json").write_text(
+            "﻿"
+            + json.dumps(
+                {"output_root": str(tmp_path / "out"), "skills": {"jenkins_analysis": "jda"}}
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch("collect.Path.home", return_value=tmp_path):
+            root, subdir = collect.load_run_root()
+        assert root == str(tmp_path / "out")
+        assert subdir == "jda"
+
     def test_corrupt_json_falls_back(self, tmp_path):
         (tmp_path / ".bicv").mkdir()
         (tmp_path / ".bicv" / "common.json").write_text("{not json", encoding="utf-8")

@@ -109,6 +109,20 @@ class TestCmdFetch:
         assert by_job["BAD"]["fetch_error"] is True
         assert "log_file" not in by_job["BAD"]
 
+    def test_reads_builds_json_with_utf8_bom(self, tmp_path, capsys):
+        # Windows PowerShell 保存的 builds.json 常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        builds_file = tmp_path / "builds.json"
+        builds_file.write_text(
+            "﻿"
+            + json.dumps({"generated_at": "t", "window": {"start": "s", "end": "e"}, "builds": []}),
+            encoding="utf-8",
+        )
+        args = mock.MagicMock(cli="/c", system=None, workers=4, rundir=str(tmp_path))
+        with mock.patch("fetch.fetch_one"):
+            rc = fetch.cmd_fetch(args)
+        assert rc == 0
+        assert "fetched ok=0 err=0" in capsys.readouterr().out
+
     def test_missing_builds_json_returns_1(self, tmp_path, capsys):
         args = mock.MagicMock(cli="/c", system=None, workers=4, rundir=str(tmp_path))
         rc = fetch.cmd_fetch(args)

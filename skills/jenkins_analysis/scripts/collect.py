@@ -39,7 +39,7 @@ def load_run_root() -> tuple[str, str]:
     subdir = DEFAULT_SKILL_SUBDIR
     if cfg_path.exists():
         try:
-            cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8-sig"))
             root = os.path.expanduser(cfg.get("output_root", DEFAULT_OUTPUT_ROOT))
             subdir = cfg.get("skills", {}).get(SKILL_KEY, DEFAULT_SKILL_SUBDIR)
         except (json.JSONDecodeError, OSError):

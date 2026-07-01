@@ -66,7 +66,7 @@ def load_systems_config(config_name: str) -> dict[str, Any]:
         raise ServiceError(f"Cannot find config file: {path}")
 
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise ServiceError(f"Config file is not valid JSON: {path}") from exc
 

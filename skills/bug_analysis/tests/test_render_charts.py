@@ -196,6 +196,17 @@ class TestResolveOutputDir:
             d = rc.resolve_output_dir(None)
         assert d == tmp_path / "root" / "bda" and d.exists()
 
+    def test_common_config_with_utf8_bom(self, tmp_path):
+        # Windows PowerShell 保存的 common.json 常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        bicv = tmp_path / ".bicv"
+        bicv.mkdir()
+        (bicv / "common.json").write_text(
+            "﻿" + json.dumps({"output_root": str(tmp_path / "root")}), encoding="utf-8"
+        )
+        with mock.patch.object(rc.Path, "home", return_value=tmp_path):
+            d = rc.resolve_output_dir(None)
+        assert d == tmp_path / "root" / "bug_analysis"
+
     def test_default_subdir_when_unmapped(self, tmp_path):
         bicv = tmp_path / ".bicv"
         bicv.mkdir()
@@ -422,6 +433,12 @@ class TestReadJson:
     def test_ok(self, tmp_path):
         f = tmp_path / "a.json"
         f.write_text(json.dumps({"x": 1}))
+        assert rc.read_json_file(str(f)) == {"x": 1}
+
+    def test_ok_with_utf8_bom(self, tmp_path):
+        # Windows PowerShell 保存的 JSON 常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        f = tmp_path / "a.json"
+        f.write_text("﻿" + json.dumps({"x": 1}), encoding="utf-8")
         assert rc.read_json_file(str(f)) == {"x": 1}
 
     def test_missing_raises(self):

@@ -72,6 +72,19 @@ class TestLoadSystemsConfig:
         assert "default" in data["systems"]
         assert data["_config_path"].endswith("email.json")
 
+    def test_loads_config_with_utf8_bom(self, tmp_path, monkeypatch):
+        # Windows PowerShell 保存的配置常带 UTF-8 BOM，读取侧用 utf-8-sig 自动剥离。
+        bicv = tmp_path / ".bicv"
+        bicv.mkdir()
+        (bicv / "email.json").write_text(
+            "﻿"
+            + json.dumps({"default_system": "default", "systems": _systems()}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        data = cfg.load_systems_config("email.json")
+        assert "default" in data["systems"]
+
     def test_missing_file_raises(self, tmp_path, monkeypatch):
         (tmp_path / ".bicv").mkdir()
         monkeypatch.setattr(Path, "home", lambda: tmp_path)

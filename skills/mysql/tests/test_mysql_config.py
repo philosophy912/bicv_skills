@@ -69,6 +69,18 @@ class TestLoadSystemsConfig:
         assert "prod" in data["systems"]
         assert data["_config_path"].endswith("mysql.json")
 
+    def test_loads_config_with_utf8_bom(self, tmp_path, monkeypatch):
+        # Windows PowerShell 保存的配置常带 UTF-8 BOM，读取侧用 utf-8-sig 自动剥离。
+        bicv = tmp_path / ".bicv"
+        bicv.mkdir()
+        (bicv / "mysql.json").write_text(
+            "﻿" + json.dumps(_full_config(), ensure_ascii=False),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(Path, "home", lambda: tmp_path)
+        data = cfg.load_systems_config("mysql.json")
+        assert "prod" in data["systems"]
+
     def test_missing_file_raises(self, tmp_path, monkeypatch):
         # .bicv exists but mysql.json does not
         (tmp_path / ".bicv").mkdir()

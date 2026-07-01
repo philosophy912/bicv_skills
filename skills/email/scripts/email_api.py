@@ -453,7 +453,7 @@ def read_body(body_arg: str) -> str:
         if not os.path.exists(path):
             raise ServiceError(f"正文文件不存在: {path}")
         try:
-            with open(path, encoding="utf-8") as f:
+            with open(path, encoding="utf-8-sig") as f:
                 return f.read()
         except OSError as exc:
             raise ServiceError(f"读取正文文件失败: {path}: {exc}") from exc

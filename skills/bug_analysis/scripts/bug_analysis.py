@@ -66,7 +66,7 @@ def _load_json_config(filename: str) -> dict[str, Any]:
     if not path.exists():
         raise ConfigError(f"配置文件不存在: {path}\n请创建 ~/.bicv/{filename}")
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
         raise ConfigError(f"配置文件 JSON 格式错误: {path}\n{exc}") from exc
 

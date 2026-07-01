@@ -295,6 +295,12 @@ class TestReadBody:
         f.write_text("<p>hi</p>", encoding="utf-8")
         assert email_api.read_body(f"@{f}") == "<p>hi</p>"
 
+    def test_file_with_utf8_bom(self, tmp_path):
+        # Windows PowerShell 保存的正文文件常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        f = tmp_path / "body.html"
+        f.write_text("﻿<p>hi</p>", encoding="utf-8")
+        assert email_api.read_body(f"@{f}") == "<p>hi</p>"
+
     def test_file_not_found(self):
         with pytest.raises(ServiceError, match="正文文件不存在"):
             email_api.read_body("@/nonexistent/file.txt")

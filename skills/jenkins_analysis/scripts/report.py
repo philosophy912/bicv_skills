@@ -40,7 +40,7 @@ def load_analyses(path: str) -> dict[tuple[str, Any], dict[str, Any]]:
     """读 analyses.json，返回 ``{(job, number): entry}``；文件不存在返回空 dict。"""
     if not os.path.isfile(path):
         return {}
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8-sig") as fh:
         data = json.loads(fh.read())
     if not isinstance(data, list):
         raise ValueError("analyses.json must be a list of objects")
@@ -247,7 +247,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     if not os.path.isfile(builds_file):
         print(f"error: builds.json not found at {builds_file}", file=sys.stderr)
         return 1
-    with open(builds_file, encoding="utf-8") as fh:
+    with open(builds_file, encoding="utf-8-sig") as fh:
         builds_data = json.load(fh)
     builds = builds_data.get("builds", [])
     if not isinstance(builds, list):

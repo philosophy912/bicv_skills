@@ -69,6 +69,15 @@ class TestLoadAnalysisConfig:
         # ignored_projects 缺省补空列表
         assert result["zentao"]["ignored_projects"] == []
 
+    def test_valid_config_with_utf8_bom(self, tmp_path):
+        # Windows PowerShell 保存的 bug_analysis.json 常带 BOM，读取侧用 utf-8-sig 自动剥离。
+        bicv = tmp_path / ".bicv"
+        bicv.mkdir()
+        (bicv / "bug_analysis.json").write_text("﻿" + json.dumps(_valid_config()), encoding="utf-8")
+        with mock.patch.object(bug_analysis.Path, "home", return_value=tmp_path):
+            result = bug_analysis.load_analysis_config()
+        assert result["zentao"]["users"] == ["张三-NJD-SW", "李四-NJD-SW"]
+
     def test_missing_config_file_raises(self, tmp_path):
         with (
             mock.patch.object(bug_analysis.Path, "home", return_value=tmp_path),

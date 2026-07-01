@@ -118,7 +118,7 @@ def read_sql_file(sql_source: str) -> str:
     if "\x00" in file_path:
         raise ServiceError(f"SQL file path contains NUL byte: {file_path!r}")
     try:
-        return Path(file_path).read_text(encoding="utf-8")
+        return Path(file_path).read_text(encoding="utf-8-sig")
     except FileNotFoundError as exc:
         raise ServiceError(f"SQL file not found: {file_path}") from exc
     except OSError as exc:
