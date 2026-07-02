@@ -28,7 +28,7 @@ temp/                   # 临时草稿（git 忽略，不提交）
 
 ## 开发环境与跨平台
 
-- 开发环境：**macOS**；但所有 skill 必须同时支持 **macOS / Linux / Windows**（Windows 含 `cmd` 与 `PowerShell` 两种终端）。
+- 开发环境：**任意操作系统**（macOS / Linux / Windows 均可）；所有 skill 必须同时支持 **macOS / Linux / Windows**（Windows 含 `cmd` 与 `PowerShell` 两种终端）。
 - **Python ≥ 3.10**（`pyproject.toml` 的 ruff `target-version = py310`）。
 - 跨平台编码硬性规范（子进程用 `sys.executable`、路径用 `pathlib`/`os.path`、禁 `os.system`/`shell=True`、文件 IO 显式 `utf-8`）、Windows 注意、平台支持矩阵，详见 [docs/reference/environment.md](docs/reference/environment.md)。
 
@@ -54,6 +54,7 @@ temp/                   # 临时草稿（git 忽略，不提交）
 1. **`system_config.py` 同名模块从路径冲突问题**：email 和 mysql 的该文件已改名为 `_email_config.py` / `_mysql_config.py`，不要在它们下面再创建 `system_config.py`。gerrit/jenkins/zentao 的 `system_config.py` 内容相同（HTTP 服务专用），改一处需同步另外两处。
 2. **脚本里的 SQL/危险操作拦截不要放松**：mysql skill 严禁 DELETE/DROP 等；zentao 写操作的危险等级确认不能跳过。
 3. **不发起真实网络请求**——脚本本身没问题（用户运行时才连），但写测试或验证时必须 mock。
+4. **第三方依赖每 skill 自持**：引入第三方库时，① 在该 skill 的 `scripts/requirements.txt` 声明；② 脚本里 `try/except ImportError` 友好提示安装命令（**不要**裸抛 `ModuleNotFoundError`）；③ `SKILL.md` 前置检查写安装命令；④ **不**擅自 `pip install`（只提示，让用户/agent 装）。详见 [docs/spec/dependencies.md](docs/spec/dependencies.md)。
 
 ## 修复缺陷的文档要求
 

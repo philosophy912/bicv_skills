@@ -1,6 +1,6 @@
 # 开发环境与跨平台支持
 
-> 本仓库在 **macOS** 上开发，但所有 skill 脚本必须**同时支持 macOS / Linux / Windows**（Windows 含 `cmd` 与 `PowerShell` 两种终端）。写/改脚本前先读完本文件。
+> 开发者可在**任意操作系统**（macOS / Linux / Windows）下开发本仓库；所有 skill 脚本也必须**同时支持 macOS / Linux / Windows**（Windows 含 `cmd` 与 `PowerShell` 两种终端）。写/改脚本前先读完本文件。
 
 ## Python 版本
 
@@ -36,11 +36,11 @@
 - 读配置用 `utf-8-sig` 自动剥离 Windows PowerShell 保存的 BOM（仓库已统一这么做）
 - 输出中文 OK，但避免 ANSI 颜色码（除非确认终端支持）
 
-## 开发环境配置（macOS）
+## 开发环境配置（任意 OS）
 
 ```bash
-# 1. python 3.10+（mac 自带或 brew install python@3.10）
-python3 --version
+# 1. python 3.10+（mac: brew install python@3.10；Linux: 系统包管理器；Windows: python.org 或 winget）
+python3 --version    # Windows 用 python --version
 
 # 2. 开发依赖（pytest/cov/ruff）
 pip install pytest pytest-cov ruff
