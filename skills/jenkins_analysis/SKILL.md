@@ -20,7 +20,7 @@ description: |
 ## 配置
 
 - 认证：`~/.bicv/jenkins.json`（复用 jenkins-restapi）
-- 分析规则：`~/.bicv/jenkins_analysis.json`（ignore_jobs / scm_jobs）
+- 分析规则：`~/.bicv/jenkins_analysis.json`（ignore_jobs / scm_jobs / since_hours / notify）
 - 输出位置：`~/.bicv/common.json`
 
 配置详情和四阶段 Pipeline 见 [references/pipeline.md](references/pipeline.md)。
@@ -33,7 +33,6 @@ description: |
 | scm 失败特征模式 | [references/scm-failure-patterns.md](references/scm-failure-patterns.md) |
 | compile 失败特征模式 | [references/compile-failure-patterns.md](references/compile-failure-patterns.md) |
 | other 失败特征模式 | [references/other-failure-patterns.md](references/other-failure-patterns.md) |
-| report 输出模板 | [assets/report-template.md](assets/report-template.md) |
 
 ## 默认执行
 
@@ -46,6 +45,8 @@ RUN=$(python3 skills/jenkins_analysis/scripts/collect.py --cli "$CLI" \
 python3 skills/jenkins_analysis/scripts/fetch.py --cli "$CLI" --rundir "$RUN"
 # ↓ analyze：agent 读 $RUN/logs/*.log + references/*.md，写 $RUN/analyses.json
 python3 skills/jenkins_analysis/scripts/report.py --rundir "$RUN" --cli "$CLI"
+# ↑ report：生成 report.json，并按 ~/.bicv/jenkins_analysis.json 的 notify 配置
+#   把四类失败 + 节点掉线以飞书卡片发到群（--no-notify 可跳过，--dry-run 只预览）
 ```
 
 用户显式说「只跑某阶段」时，基于运行目录里已有产物重跑该阶段。
@@ -55,6 +56,11 @@ python3 skills/jenkins_analysis/scripts/report.py --rundir "$RUN" --cli "$CLI"
 1. jenkins-restapi skill 已安装（`jenkins_api.py` 可用），路径作为各脚本的 `--cli`。
 2. `~/.bicv/jenkins.json` 存在且配置了目标 Jenkins。
 3. 确认/创建 `~/.bicv/common.json`。
+4. **发飞书卡片前**：目标飞书群已添加**自定义机器人**（群设置 → 群机器人 → 添加自定义机器人），
+   拿到其 webhook URL（若勾选了加签，一并记下 `secret`）。report 通过 webhook 直接 POST，**不依赖 lark-cli**。
+5. **发飞书卡片前**：`~/.bicv/jenkins_analysis.json` 配了 `notify.webhook_url`（飞书群**自定义机器人**
+   的 webhook URL，形如 `https://open.feishu.cn/open-apis/bot/v2/hook/<id>`；可选 `secret` 启用加签）。
+   未配则 report 阶段只生成 report.json 不发卡片。
 
 ## 禁止
 

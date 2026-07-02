@@ -4,10 +4,12 @@
 `scm`。本清单是**最小可用集合**，遇到新的 scm 失败形态请往这里追加，无需改代码。
 
 > **口径**：scm 类只覆盖**拉源码环节本身失败**——即 git fetch / clone / checkout、svn
-> update 等取源码动作报错。代码托管系统的 **API 鉴权失败**（如 `Gerrit response:
-> Unauthorized`，发生在 code style 检查、调 Gerrit REST API 等非拉源码环节）**不算** scm，
-> 归 `other`（见 other-failure-patterns.md 的「代码托管 API 认证失败」）。判定时注意结合
-> 错误出现的上下文阶段，区分「拉不到代码」与「调 scm 系统的某个 API 鉴权没过」。
+> update 等取源码动作报错。
+>
+> ⚠️ **一律忽略 `ERROR Gerrit response: Unauthorized`**：本行由 Jenkins Gerrit Trigger 插件
+> 在**每次构建**（无论成功还是失败）结束后回写 Gerrit 时打印，是固定噪声——**既不能据此归
+> `other`，也不能当作 scm 信号**。判定时跳过这行，只看日志中除此之外的真实错误特征。结合
+> 错误的上下文阶段，区分「拉不到代码」与「调 scm 系统的某个 API 鉴权没过」。
 
 > scm 优先于 compile/other 判定。若一个构建同时有 scm 失败和编译失败，按本清单先命中
 > scm 即归 `scm`（取第一个命中的分类）。
@@ -56,14 +58,26 @@
   COCSCM/repo 脚本拉码，Jenkins 层面配 NullSCM 是正常配置；只有当伴随 devops/scm 脚本缺失、
   pyvenv.cfg 缺失或 repo/git fetch 错误时才归 scm。
 
+## SCM 工具脚本运行时异常（SCM 流程 job 的 main.py 崩溃）
+
+- `[ERROR]| main.py |MOD: main |FUNC: run |Line:100 [LOG] 执行失败: <Python 异常>`：SCM 流程
+  job（`SCM_GERRIT_CODE_STYLE_CHECK` / `SCM_CHECK_XML` / `SCM_PACKAGE` 等）的工具入口 `main.py`
+  在 `run` 环节抛 Python 运行时异常——`not enough values to unpack (expected 3, got 2)`、
+  `KeyError`、`IndexError`、`AttributeError`、`Traceback (most recent call last)` 等。
+- 这是 SCM 工具脚本自身崩溃（与「devops/scm 脚本缺失」同属 SCM 工具链问题），归 **scm**。
+- 判定特征：日志含 `main.py |FUNC: run` + `执行失败: <异常消息>`；常伴「详细错误信息已保存至
+  `.../error_*.log`」。
+- **优先级**：同一 `SCM_GERRIT_CODE_STYLE_CHECK` job 里，先判 main.py 运行时异常（→ scm），
+  再判「提交不符合规范无需 codeview」（→ other）。两者根因不同：前者是工具崩了，后者是检查
+  主动拒绝不合规提交（见 other-failure-patterns.md 的「代码规范检查不合规」）。
+
 ## SCM 流程项目匹配失败（SCM 打包/分发 job）
 
 - `执行失败: 未匹配到 qa_projects 条目: host=..., project=..., branch=...`：SCM_PACKAGE 等
   SCM 流程 job 在处理 Gerrit 触发的 patchset 时，找不到 qa_projects 的匹配配置，打包/分发
   流程失败。这类是 SCM 流程配置问题，归 scm。
-- 此类常伴随 `ERROR Gerrit response: Unauthorized`（调 Gerrit API 拉项目信息时鉴权失败），
-  但根因是项目匹配/SCM 流程，归 scm；区别于纯 Gerrit API 鉴权失败（见 other-failure-patterns.md
-  的「代码托管 API 认证失败」）。
+- 判定以 `qa_projects` / `未匹配到` 等真实特征为准，**不要**因为日志里有 `ERROR Gerrit
+  response: Unauthorized` 就判——那是 Gerrit Trigger 噪声（见顶部口径），每次构建都打，与根因无关。
 - 匹配提示：Windows 节点日志里的中文（「未匹配到」「项目」等）常是 GBK 字节、被容错解码成
   乱码，判定时以 ASCII 关键字 `qa_projects` 为准。
 
@@ -105,6 +119,5 @@
 - 拉代码成功，失败出现在 `mvn` / `make` / `gcc` / `npm` / `javac` 等编译命令 → `compile`。
 - 拉代码成功，失败是 `No space left on device` / `Cannot allocate memory` / 磁盘满 /
   依赖下载超时 → `other`。
-- `Gerrit response: Unauthorized` / Gerrit REST API 鉴权失败、但发生在 code style 检查、
-  webhook 回调、调 Gerrit API 做合规检查等**非拉源码环节** → `other`（代码托管 API 认证
-  失败）。这类是 scm 系统的 API 凭据问题，不是「拉不到代码」，不算 scm。
+- `ERROR Gerrit response: Unauthorized` 是 Gerrit Trigger 噪声（见顶部口径），**不参与分类**——
+  既不归 `other` 也不算 scm，判定时直接忽略这行。

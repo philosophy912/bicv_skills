@@ -7,12 +7,23 @@
 ```json
 {
   "ignore_jobs": [],
-  "scm_jobs": ["SELF_TICKET_RECORD"]
+  "scm_jobs": ["SELF_TICKET_RECORD"],
+  "since_hours": 24,
+  "notify": {
+    "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxxx",
+    "secret": "可选，启用加签时填",
+    "enabled": true
+  }
 }
 ```
 
 - `ignore_jobs`：要**完全忽略**的 job 名（精确匹配），归为 `ignored`。collect 仍收集，仅 analyze 忽略。
+- `since_hours`：查询窗口时长（小时），以 collect 运行时刻为终点往前推。命令行 `--since-hours` 可覆盖；
+  缺省此字段时回退默认 24。例 `24` → `[now-24h, now]`。
 - `scm_jobs`：**强制归 scm** 的 job 名。典型如 `SELF_TICKET_RECORD`。
+- `notify`：飞书卡片通知。`webhook_url`（群**自定义机器人**的 webhook URL，必填）、
+  `secret`（启用加签时填，可选）、`enabled`（默认 `true`）。缺失或无 `webhook_url` → 不发通知，
+  仅生成 report.json。发送走 webhook 直接 POST，不依赖 lark-cli。
 - 配置文件不存在时按空列表处理。
 
 ## 输出位置（~/.bicv/common.json）
@@ -36,8 +47,7 @@
 ├── builds.json      # collect 产物
 ├── logs/            # fetch 产物，每条失败构建一个 .log
 ├── analyses.json    # analyze 产物（agent 写，每条失败构建的判定）
-├── report.json      # report 产物（全局汇总）
-└── report.md        # report 产物（归档）
+└── report.json      # report 产物（全局汇总，卡片数据源）
 ```
 
 ---
@@ -186,12 +196,16 @@ python3 skills/jenkins_analysis/scripts/report.py \
 }
 ```
 
-4. **按 [`assets/report-template.md`](../assets/report-template.md) 渲染 `report.md`**——
-   节顺序、表格列头、scm 全列 / 其余各类代表条目上限、日志摘要不进报告等约束见该模板。
+4. **发飞书卡片**（若 `~/.bicv/jenkins_analysis.json` 配了 `notify` 且未传 `--no-notify`）：
+   直接 POST `{"msg_type":"interactive","card":...}` 到配置的 webhook URL（自定义机器人）——
 
-**输出格式严格遵循模板**：终端 Markdown 摘要（agent 直接在对话里复述 `report.md` 关键内容）
-与落盘 `report.md` 同内容。模板里「compile/other/unknown 代表条目」用**按 job 分组、每个 job
-至少 1 条、再按失败数补齐到上限**的算法选取，scm 类逐条全列。
+   - **四类各一组**：scm / compile / other / unknown，每类按 **每 5 条拆成多张卡**（`ceil(N/5)`，
+     **某类 0 条则跳过不发**）。每张卡含：标题（类别 + 条数 + 第 i/k 张）、
+     顶部统计（总失败 + 四类计数 + 窗口/实例）、最多 5 条明细（job / #构建 / 判定依据 / 构建链接）。
+   - **节点掉线卡**：仅当存在系统自发掉线节点时发一张，标题含 `系统自发掉线 n/总节点`。
+   - 配了 `secret` 则按官方加签（`timestamp` + `sign` 追加到 URL）；单卡失败不中断，记 stderr warning。
+   - `--dry-run` 只打印卡片 JSON 不真发（不依赖 lark-cli 已装）；`--no-notify` 跳过发送仅生成 report.json。
+   - 无 `notify` 配置时静默跳过（兼容只生成 report.json 的用法）。
 
 ---
 

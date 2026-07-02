@@ -72,6 +72,64 @@ class TestLoadRunRoot:
 
 
 # ===================================================================
+# load_since_hours
+# ===================================================================
+
+
+class TestLoadSinceHours:
+    def test_missing_file(self, tmp_path):
+        assert collect.load_since_hours(tmp_path / "nope.json") is None
+
+    def test_no_key(self, tmp_path):
+        p = tmp_path / "c.json"
+        p.write_text(json.dumps({"ignore_jobs": []}), encoding="utf-8")
+        assert collect.load_since_hours(p) is None
+
+    def test_valid_int(self, tmp_path):
+        p = tmp_path / "c.json"
+        p.write_text(json.dumps({"since_hours": 24}), encoding="utf-8")
+        assert collect.load_since_hours(p) == 24.0
+
+    def test_valid_float(self, tmp_path):
+        p = tmp_path / "c.json"
+        p.write_text(json.dumps({"since_hours": 1.5}), encoding="utf-8")
+        assert collect.load_since_hours(p) == 1.5
+
+    def test_zero_or_negative_invalid(self, tmp_path):
+        p = tmp_path / "c.json"
+        p.write_text(json.dumps({"since_hours": 0}), encoding="utf-8")
+        assert collect.load_since_hours(p) is None
+        p.write_text(json.dumps({"since_hours": -1}), encoding="utf-8")
+        assert collect.load_since_hours(p) is None
+
+    def test_string_invalid(self, tmp_path):
+        p = tmp_path / "c.json"
+        p.write_text(json.dumps({"since_hours": "24"}), encoding="utf-8")
+        assert collect.load_since_hours(p) is None
+
+    def test_bool_excluded(self, tmp_path):
+        # bool 是 int 子类，但不是合法时长
+        p = tmp_path / "c.json"
+        p.write_text(json.dumps({"since_hours": True}), encoding="utf-8")
+        assert collect.load_since_hours(p) is None
+
+    def test_corrupt_json(self, tmp_path):
+        p = tmp_path / "c.json"
+        p.write_text("{bad", encoding="utf-8")
+        assert collect.load_since_hours(p) is None
+
+    def test_non_dict_root(self, tmp_path):
+        p = tmp_path / "c.json"
+        p.write_text(json.dumps([1, 2]), encoding="utf-8")
+        assert collect.load_since_hours(p) is None
+
+    def test_utf8_bom(self, tmp_path):
+        p = tmp_path / "c.json"
+        p.write_text("﻿" + json.dumps({"since_hours": 12}), encoding="utf-8")
+        assert collect.load_since_hours(p) == 12.0
+
+
+# ===================================================================
 # make_rundir
 # ===================================================================
 
@@ -308,6 +366,50 @@ class TestCmdCollect:
         assert data["since_hours"] == 12
         assert data["prefilter"]["enabled"] is False
 
+    def test_since_hours_reads_config_when_cli_none(self, tmp_path, capsys):
+        # 命令行不传 --since-hours（None）→ 读配置 load_since_hours
+        jobs = [{"name": "J", "url": "u", "color": "blue"}]
+
+        def fake(cli, subcommand, system=None, timeout=180):
+            if subcommand[0] == "list-jobs":
+                return self._jobs_envelope(jobs)
+            return _proc(stdout=json.dumps({"system": "default", "data": []}))
+
+        args = mock.MagicMock(
+            cli="/c", system=None, since_hours=None, workers=1, no_prefilter=False, rundir=None
+        )
+        with (
+            mock.patch("collect.run_jenkins_cli", side_effect=fake),
+            mock.patch("collect.load_run_root", return_value=(str(tmp_path), "sub")),
+            mock.patch("collect.load_since_hours", return_value=6.0),
+        ):
+            rc = collect.cmd_collect(args)
+        assert rc == 0
+        data = json.loads((tmp_path / "sub").glob("*/builds.json").__next__().read_text("utf-8"))
+        assert data["since_hours"] == 6.0  # 来自配置
+
+    def test_since_hours_defaults_24_when_cli_none_and_no_config(self, tmp_path, capsys):
+        # 命令行 None + 配置也 None → 默认 24
+        jobs = [{"name": "J", "url": "u", "color": "blue"}]
+
+        def fake(cli, subcommand, system=None, timeout=180):
+            if subcommand[0] == "list-jobs":
+                return self._jobs_envelope(jobs)
+            return _proc(stdout=json.dumps({"system": "default", "data": []}))
+
+        args = mock.MagicMock(
+            cli="/c", system=None, since_hours=None, workers=1, no_prefilter=False, rundir=None
+        )
+        with (
+            mock.patch("collect.run_jenkins_cli", side_effect=fake),
+            mock.patch("collect.load_run_root", return_value=(str(tmp_path), "sub")),
+            mock.patch("collect.load_since_hours", return_value=None),
+        ):
+            rc = collect.cmd_collect(args)
+        assert rc == 0
+        data = json.loads((tmp_path / "sub").glob("*/builds.json").__next__().read_text("utf-8"))
+        assert data["since_hours"] == 24
+
     def test_reuses_rundir(self, tmp_path):
         rundir = tmp_path / "existing"
         rundir.mkdir()
@@ -399,7 +501,8 @@ class TestParserAndMain:
         with mock.patch.object(sys, "argv", ["collect.py", "--cli", "/c"]):
             args = collect.build_parser().parse_args()
         assert args.cli == "/c"
-        assert args.since_hours == 24 and args.workers == 20 and args.no_prefilter is False
+        # since_hours 命令行缺省 None（运行时再读配置或回退 24）
+        assert args.since_hours is None and args.workers == 20 and args.no_prefilter is False
 
     def test_main_invokes_cmd_collect(self):
         args = mock.MagicMock()

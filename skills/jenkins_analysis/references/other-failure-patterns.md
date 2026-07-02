@@ -25,15 +25,14 @@
 - `Build timed out` / `Timeout exceeded`
 - `Finished: ABORTED`
 
-## 代码托管 API 认证失败（非拉源码环节，且非 SCM 流程匹配失败）
+## ⚠️ Gerrit Trigger 噪声（忽略，不参与分类）
 
-- `Gerrit response: Unauthorized` / Gerrit REST API 返回 401：调用代码托管系统的 API 做合规
-  检查、code style 校验、webhook 回调等时鉴权未通过（token/凭据失效或权限不足）。
-- 此类发生在**非拉源码环节**（不是 git fetch/checkout），不算 scm，归 `other`。常见于
-  `SCM_GERRIT_*` 等 job。
-- **例外**：若同一日志里还出现 `未匹配到 qa_projects 条目`（SCM_PACKAGE 等 SCM 流程 job 的
-  项目匹配失败），则整体归 `scm`（见 scm-failure-patterns.md 的「SCM 流程项目匹配失败」）——
-  根因是 SCM 流程配置，不是单纯 API 鉴权。
+- `ERROR Gerrit response: Unauthorized`：Jenkins Gerrit Trigger 插件在**每次构建**（无论成功
+  还是失败）结束后回写 Gerrit 时都会打印此行，是固定噪声。**一律忽略**——既不归 `other`，也
+  不当作任何分类信号。判定时跳过这行，按日志中其余真实错误特征归类（git/mvn/资源/环境等）。
+- 若忽略该行后日志再无其它可判错误、构建却失败：归 `unknown`，evidence 注明「仅剩 Gerrit
+  Trigger 噪声行，未见真实失败原因，需人工复核日志」。
+- **不要**因为本行出现在 `SCM_GERRIT_*` 等 job 里就判 `other`——job 名不改变这行的噪声性质。
 
 ## 环境与配置
 
@@ -50,6 +49,17 @@
 - `pytest ... failed` / `AssertionError`（在测试阶段，非编译阶段）
 - 此类通常构建状态为 `UNSTABLE` 或 `FAILURE`，但代码已编译通过——归 `other`，不归
   `compile`。
+
+## 代码规范检查不合规（code style / 提交规范）
+
+- `提交不符合规范无需codeview` / `commit message does not match pattern`：`SCM_GERRIT_CODE_STYLE_CHECK`
+  等 code style 检查 job **主动拒绝**了不合规提交（提交信息/代码风格不符规范），是检查机制的预期
+  结果而非故障。Jenkins 标 FAILURE（Text Finder 命中模式），归 `other`。
+- **区别于 SCM 工具脚本崩溃**：若同一 job 日志里出现 `main.py |FUNC: run` + `执行失败: <Python 异常>`
+  （`not enough values to unpack` 等），那是 SCM 工具脚本自身崩了，归 `scm`（见
+  scm-failure-patterns.md 的「SCM 工具脚本运行时异常」）。两者根因不同，判定时**先查 main.py 运行
+  时异常 → scm，再查 code style 不合规 → other**。
+- `ERROR Gerrit response: Unauthorized` 是 trigger 噪声，忽略（见上节）。
 
 ## 通用特征
 

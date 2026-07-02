@@ -47,6 +47,28 @@ def load_run_root() -> tuple[str, str]:
     return root, subdir
 
 
+ANALYSIS_CONFIG_PATH = Path.home() / ".bicv" / "jenkins_analysis.json"
+
+
+def load_since_hours(path: Path | None = None) -> float | None:
+    """读 ~/.bicv/jenkins_analysis.json 的 since_hours（>0 的数）；缺失/无效返回 None。"""
+    p = path or ANALYSIS_CONFIG_PATH
+    if not p.exists():
+        return None
+    try:
+        cfg = json.loads(p.read_text(encoding="utf-8-sig"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(cfg, dict):
+        return None
+    val = cfg.get("since_hours")
+    if isinstance(val, bool):  # bool 是 int 子类，排除
+        return None
+    if isinstance(val, (int, float)) and val > 0:
+        return float(val)
+    return None
+
+
 def make_rundir(output_root: str, subdir: str) -> str:
     """创建并返回带本地时间戳的运行目录 <root>/<subdir>/YYYY-MM-DD_HHMMSS/（含 logs/）。"""
     ts = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -127,6 +149,8 @@ def cmd_collect(args: argparse.Namespace) -> int:
     output_root, subdir = load_run_root()
     rundir = args.rundir or make_rundir(output_root, subdir)
     os.makedirs(os.path.join(rundir, "logs"), exist_ok=True)
+    # since_hours 优先级：命令行 > 配置（~/.bicv/jenkins_analysis.json）> 默认 24
+    since = args.since_hours if args.since_hours is not None else (load_since_hours() or 24)
 
     # 1. list-jobs
     try:
@@ -154,7 +178,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
     errors: list[dict[str, str]] = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
         future_map = {
-            pool.submit(collect_one_job, args.cli, args.system, name, args.since_hours): name
+            pool.submit(collect_one_job, args.cli, args.system, name, since): name
             for name in target_names
         }
         for fut in concurrent.futures.as_completed(future_map):
@@ -169,7 +193,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
     errors.sort(key=lambda e: e["job"])
 
     now = datetime.datetime.now()
-    start = now - datetime.timedelta(hours=args.since_hours)
+    start = now - datetime.timedelta(hours=since)
     result = {
         "generated_at": now.strftime("%Y-%m-%dT%H:%M:%S"),
         "window": {
@@ -177,7 +201,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
             "end": now.strftime("%Y-%m-%dT%H:%M:%S"),
         },
         "system": args.system or "default",
-        "since_hours": args.since_hours,
+        "since_hours": since,
         "prefilter": {
             "enabled": not args.no_prefilter,
             "skipped_count": len(skipped),
@@ -205,7 +229,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--cli", required=True, help="jenkins-restapi 的 jenkins_api.py 路径")
     parser.add_argument("--system", default=None, help="Jenkins 实例名（透传给 jenkins_api.py）")
-    parser.add_argument("--since-hours", type=float, default=24, help="滚动窗口小时数（默认 24）")
+    parser.add_argument(
+        "--since-hours",
+        type=float,
+        default=None,
+        help="滚动窗口小时数；缺省读 ~/.bicv/jenkins_analysis.json 的 since_hours，再缺省 24",
+    )
     parser.add_argument("--workers", type=int, default=20, help="list-builds 并发数（默认 20）")
     parser.add_argument(
         "--no-prefilter",
