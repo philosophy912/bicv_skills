@@ -9,7 +9,7 @@
 - 每个 skill 自包含：`SKILL.md` + `scripts/` + 可选 `references/`
 - 每个 skill 各持一份 `scripts/system_config.py`（凭据/配置解析底座），互不依赖
 - 凭据统一存在 `~/.bicv/<skill>.json`，多实例用 `--system <name>` 切换
-- 安装/结构规范见 [README](README.md)，配置规范见 [docs/config-spec.md](docs/config-spec.md)
+- 安装/结构规范见 [README](README.md)，配置规范见 [docs/spec/config-spec.md](docs/spec/config-spec.md)
 
 ## 仓库结构
 
@@ -20,10 +20,17 @@ skills/
 ├── zentao-restapi/     # 禅道 v2 REST API
 └── mysql/              # MySQL（仅 SELECT/INSERT/UPDATE）
 docs/
-├── config-spec.md      # ~/.bicv/*.json 配置规范
-├── writing-a-skill.md  # 如何新增 skill
-└── testing-guide.md    # ⚠️ 测试指南（必读）
+├── reference/          # 参考资料（开发环境 / 跨平台 / Python 版本）
+├── spec/               # 技术文档（配置规范 / 写 skill / 测试指南 / 优化方案）
+└── issue/              # 缺陷文档（修复缺陷必写：问题 / 根因 / 方案）
+temp/                   # 临时草稿（git 忽略，不提交）
 ```
+
+## 开发环境与跨平台
+
+- 开发环境：**macOS**；但所有 skill 必须同时支持 **macOS / Linux / Windows**（Windows 含 `cmd` 与 `PowerShell` 两种终端）。
+- **Python ≥ 3.10**（`pyproject.toml` 的 ruff `target-version = py310`）。
+- 跨平台编码硬性规范（子进程用 `sys.executable`、路径用 `pathlib`/`os.path`、禁 `os.system`/`shell=True`、文件 IO 显式 `utf-8`）、Windows 注意、平台支持矩阵，详见 [docs/reference/environment.md](docs/reference/environment.md)。
 
 ## ⚠️ 测试是硬性要求
 
@@ -34,7 +41,7 @@ docs/
 - 覆盖率按 skill 主脚本文件衡量；`system_config.py` 不计入单 skill 指标（由全量测试合并覆盖）
 - 提交前在仓库根跑 `python3 -m pytest`，`fail_under = 90` 会卡住不达标的合并
 
-**测试怎么写、怎么跑，见 [docs/testing-guide.md](docs/testing-guide.md)。** 写任何测试前先读这份指南。
+**测试怎么写、怎么跑，见 [docs/spec/testing-guide.md](docs/spec/testing-guide.md)。** 写任何测试前先读这份指南。
 
 核心规范速记：
 
@@ -47,6 +54,17 @@ docs/
 1. **`system_config.py` 同名模块从路径冲突问题**：email 和 mysql 的该文件已改名为 `_email_config.py` / `_mysql_config.py`，不要在它们下面再创建 `system_config.py`。gerrit/jenkins/zentao 的 `system_config.py` 内容相同（HTTP 服务专用），改一处需同步另外两处。
 2. **脚本里的 SQL/危险操作拦截不要放松**：mysql skill 严禁 DELETE/DROP 等；zentao 写操作的危险等级确认不能跳过。
 3. **不发起真实网络请求**——脚本本身没问题（用户运行时才连），但写测试或验证时必须 mock。
+
+## 修复缺陷的文档要求
+
+修复任何**缺陷（bug）**时，**必须**在 `docs/issue/` 下新建一个 md 文档（文件名 `issue-<日期>-<简述>.md`，如 `issue-2026-07-02-card-500.md`），至少包含：
+
+- **问题描述**：现象、复现步骤、影响范围
+- **根本原因**：定位到的具体代码 / 逻辑根因（不是表象）
+- **解决方案**：怎么改的、为什么这么改
+- **验证**：怎么确认修复有效（新增测试用例 / 手动验证结果）
+
+模板见 [docs/issue/TEMPLATE.md](docs/issue/TEMPLATE.md)。纯新增功能、文档、重构类改动不需要写 issue 文档。
 
 ## 常用命令
 
@@ -82,6 +100,8 @@ alias commit="git add . && cmy && git pr && git psa"
 - 一次性提交+PR+推送：`commit`（add 全部 → cmy → git pr → git psa）。
 
 注意：`commit` alias 会 `git add .` 把工作区所有改动暂存（含会话前已存在的无关改动，如 jenkins_analysis 的本地修改），提交前先确认 `git status` 范围。默认当前分支为 main，直接推送 main。
+
+- **提交前必查文档同步**：本次改动是否需要更新 `docs/spec/` 下的设计/技术文档，或 `README.md`？涉及**行为变化 / 新功能 / 配置字段 / 接口变动 / 跨平台支持**时，必须同步相关文档并与代码一起提交。修复缺陷另需按上节写 `docs/issue/` 文档。
 
 ## 安装方式（用户侧，非开发）
 

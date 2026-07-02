@@ -220,3 +220,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .omx/
+
+# 临时记录（会话内草稿/待办，不提交）
+temp/

@@ -1,6 +1,6 @@
 # mysql 配置
 
-配置文件位置和顶层结构见 [config 规范](../../../docs/config-spec.md)。本文件仅说明本 skill 特有的字段。
+配置文件位置和顶层结构见 [config 规范](../../../docs/spec/config-spec.md)。本文件仅说明本 skill 特有的字段。
 
 ## config_name
 

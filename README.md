@@ -51,10 +51,10 @@ npx skills add philosophy912/bicv_skills -y -g --agent claude-code codex hermes-
 
 ## 配置
 
-各 skill 凭据统一存在 `~/.bicv/<skill-name>.json`，结构必须包含 `systems` 字典，支持多实例（多套 Gerrit、多套 Jenkins 等），CLI 通过 `--system <name>` 切换。详见 [config 规范](docs/config-spec.md)。
+各 skill 凭据统一存在 `~/.bicv/<skill-name>.json`，结构必须包含 `systems` 字典，支持多实例（多套 Gerrit、多套 Jenkins 等），CLI 通过 `--system <name>` 切换。详见 [config 规范](docs/spec/config-spec.md)。
 
 ## 文档
 
-- [config 规范](docs/config-spec.md)
-- [如何新增 skill](docs/writing-a-skill.md)
-- [测试指南](docs/testing-guide.md)（每个 skill 脚本覆盖率 ≥90%）
+- [config 规范](docs/spec/config-spec.md)
+- [如何新增 skill](docs/spec/writing-a-skill.md)
+- [测试指南](docs/spec/testing-guide.md)（每个 skill 脚本覆盖率 ≥90%）
